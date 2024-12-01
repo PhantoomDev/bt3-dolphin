@@ -118,8 +118,11 @@ Done!
 ## Current Status
 - Reverse engineering: In Progress
 - Code injection research: Not Started
-- Dolphin modification: Planning Phase
+- Dolphin modification: In Progress
 - Netplay implementation: Not Started
+
+
+> **Note:** For all added code for BT3 rollback implementation will be commented with:`BT3 rollback`
 
 
 ## Resources

@@ -2131,6 +2131,394 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
   return true;
 }
 
+// BT3 rollback:
+// the version above uses dealy based approach (look up rollback vs delay on YT)
+// when testing will comment out the previous part so as to not destroy things
+// curently still in pseudo-code logic
+bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatus* pad_status)
+{
+  // Handle batching for polling all local pads at once
+  if (IsFirstInGamePad(pad_nb) && batching)
+  {
+    sf::Packet packet;
+    packet << MessageID::PadData;
+
+    const int num_local_pads = NumLocalPads();
+    for (int local_pad = 0; local_pad < num_local_pads; local_pad++)
+    {
+      // Still send local inputs immediately
+      PollLocalPad(local_pad, packet);
+    }
+    SendAsync(std::move(packet));
+  }
+
+  // First safety check - are we still running?
+  if (!m_is_running.IsSet())
+  {
+    return false;
+  }
+
+  // The following are pseudo-code for rollback logic
+  // Check if we have received real input
+  if (m_pad_buffer[pad_nb].Size() > 0)
+  {
+    // We have real input - check if we need to rollback
+    GCPadStatus real_input;
+    m_pad_buffer[pad_nb].Pop(real_input);
+
+    // Check if this differs from our prediction
+    if (HasPrediction(pad_nb, m_current_frame) &&
+        InputsDiffer(GetPredictedInput(pad_nb, m_current_frame), real_input))
+    {
+
+      // Second safety check before starting rollback
+      if (!m_is_running.IsSet())
+      {
+        return false;
+      }
+
+      // Inputs differ - need to rollback
+      int rollback_frames = CalculateRollbackFrames(pad_nb);
+
+      // Save current state before rollback
+      SaveCurrentGameState();
+
+      // Rollback to last confirmed state
+      LoadGameState(m_current_frame - rollback_frames);
+
+      // Update prediction history with real input
+      UpdatePredictionHistory(pad_nb, m_current_frame, real_input);
+
+      // Re-simulate up to current frame with correct inputs
+      ResimulateFrames(m_current_frame - rollback_frames, m_current_frame);
+    }
+
+    *pad_status = real_input;
+  }
+  else
+  {
+    // No real input available - predict
+    GCPadStatus predicted_input;
+    if (HasPreviousInput(pad_nb))
+    {
+      // Use previous input as prediction
+      predicted_input = GetLastKnownInput(pad_nb);
+    }
+    else
+    {
+      // No previous input - use neutral state
+      predicted_input = GetNeutralPadStatus();
+    }
+
+    // Store prediction
+    StorePrediction(pad_nb, m_current_frame, predicted_input);
+    *pad_status = predicted_input;
+
+    // Handle packet loss detection
+    if (ShouldCheckPacketLoss())
+    {
+      if (DetectPacketLoss(pad_nb))
+      {
+        HandlePacketLoss(pad_nb);
+      }
+    }
+
+    m_current_frame++;
+    return true;
+  }
+
+  // Fallback safety - should never reach here but good practice
+  return false;
+}
+
+// BT3 rollback: Helper function implementations
+bool NetPlayClient::HasPrediction(int pad_num, int frame)
+{
+  auto it = m_prediction_map.find(pad_num);
+  if (it == m_prediction_map.end())
+    return false;
+
+  return std::any_of(it->second.begin(), it->second.end(),
+                     [frame](const InputPredictionState& state) {
+                       return state.frame_number == frame && state.is_prediction;
+                     });
+}
+
+GCPadStatus NetPlayClient::GetPredictedInput(int pad_num, int frame)
+{
+  auto it = m_prediction_map.find(pad_num);
+  if (it == m_prediction_map.end())
+    return GetNeutralPadStatus();
+
+  auto pred_it = std::find_if(it->second.begin(), it->second.end(),
+                              [frame](const InputPredictionState& state) {
+                                return state.frame_number == frame && state.is_prediction;
+                              });
+
+  return pred_it != it->second.end() ? pred_it->predicted_input : GetNeutralPadStatus();
+}
+
+bool NetPlayClient::InputsDiffer(const GCPadStatus& a, const GCPadStatus& b)
+{
+  // TODO: crosscheck compare logic with actual controller logic
+  // Adding detailed comments about the comparison logic
+  // We compare all relevant input fields that could affect gameplay
+  return a.button != b.button || a.stickX != b.stickX || a.stickY != b.stickY ||
+         a.substickX != b.substickX || a.substickY != b.substickY ||
+         a.triggerLeft != b.triggerLeft || a.triggerRight != b.triggerRight;
+}
+
+int NetPlayClient::CalculateRollbackFrames(int pad_num)
+{
+  auto it = m_prediction_map.find(pad_num);
+  if (it == m_prediction_map.end())
+    return 0;
+
+  int oldest_prediction = std::numeric_limits<int>::max();
+  for (const auto& state : it->second)
+  {
+    if (state.is_prediction && state.frame_number < oldest_prediction)
+      oldest_prediction = state.frame_number;
+  }
+
+  // Ensure we don't rollback more than our maximum allowed frames
+  return std::min(m_current_frame - oldest_prediction, MAX_ROLLBACK_FRAMES);
+}
+
+void NetPlayClient::UpdatePredictionHistory(int pad_num, int frame, const GCPadStatus& real_input)
+{
+  auto& predictions = m_prediction_map[pad_num];
+
+  auto it = std::find_if(
+      predictions.begin(), predictions.end(),
+      [frame](const InputPredictionState& state) { return state.frame_number == frame; });
+
+  if (it != predictions.end())
+  {
+    it->actual_input = real_input;
+    it->is_prediction = false;
+  }
+
+  // Clean up old predictions to prevent memory growth
+  predictions.erase(std::remove_if(predictions.begin(), predictions.end(),
+                                   [this](const InputPredictionState& state) {
+                                     return state.frame_number <
+                                            m_current_frame - MAX_ROLLBACK_FRAMES;
+                                   }),
+                    predictions.end());
+}
+
+void NetPlayClient::StorePrediction(int pad_num, int frame, const GCPadStatus& predicted_input)
+{
+  // Create a new prediction state
+  InputPredictionState state{.predicted_input = predicted_input,
+                             .actual_input = {},  // Will be filled when real input arrives
+                             .is_prediction = true,
+                             .frame_number = frame};
+
+  // Add to prediction history
+  m_prediction_map[pad_num].push_back(state);
+
+  // Cleanup old predictions to prevent memory bloat
+  while (m_prediction_map[pad_num].size() > MAX_CONSECUTIVE_PREDICTIONS)
+  {
+    m_prediction_map[pad_num].erase(m_prediction_map[pad_num].begin());
+  }
+}
+
+GCPadStatus NetPlayClient::GetLastKnownInput(int pad_num)
+{
+  auto it = m_prediction_map.find(pad_num);
+  if (it == m_prediction_map.end() || it->second.empty())
+  {
+    return GetNeutralPadStatus();
+  }
+
+  // Find the most recent non-predicted input
+  auto recent_input =
+      std::find_if(it->second.rbegin(), it->second.rend(),
+                   [](const InputPredictionState& state) { return !state.is_prediction; });
+
+  if (recent_input != it->second.rend())
+  {
+    return recent_input->actual_input;
+  }
+
+  return GetNeutralPadStatus();
+}
+
+bool NetPlayClient::HasPreviousInput(int pad_num)
+{
+  auto it = m_prediction_map.find(pad_num);
+  if (it == m_prediction_map.end() || it->second.empty())
+  {
+    return false;
+  }
+
+  return std::any_of(it->second.begin(), it->second.end(),
+                     [](const InputPredictionState& state) { return !state.is_prediction; });
+}
+
+// BT3 rollback: Statement management system
+void NetPlayClient::SaveCurrentGameState()
+{
+  GameState current_state;
+  current_state.frame_number = m_current_frame;
+
+  /* TODO: Core System State Capture
+   * These will need to be implemented as we identify them:
+   * 1. Memory regions that need saving
+   * 2. CPU register state
+   * 3. Any other hardware state
+   */
+
+  /* TODO: Game-Specific State [Update during reverse engineering]
+   * Combat System:
+   * - Character position/state structs
+   * - Active hitbox/hurtbox data
+   * - Move state machines
+   * - Combo system state
+   *
+   * Game Logic:
+   * - Round timer
+   * - Score/health values
+   * - Game mode flags
+   *
+   * Physics:
+   * - Movement vectors
+   * - Collision states
+   */
+
+  // Save to ring buffer, implementing circular state saving
+  m_saved_states.push_back(current_state);
+  if (m_saved_states.size() > MAX_ROLLBACK_FRAMES)
+  {
+    m_saved_states.pop_front();
+  }
+}
+
+void NetPlayClient::LoadGameState(int frame)
+{
+  // Find the correct state to load
+  auto state_it =
+      std::find_if(m_saved_states.begin(), m_saved_states.end(),
+                   [frame](const GameState& state) { return state.frame_number == frame; });
+
+  if (state_it == m_saved_states.end())
+  {
+    // Handle error - unable to find state
+    return;
+  }
+
+  /* TODO: Core System State Restore
+   * Mirror the save process:
+   * 1. Restore memory regions
+   * 2. Restore CPU registers
+   * 3. Restore hardware state
+   */
+
+  /* TODO: Game-Specific State Restore
+   * Combat System:
+   * - Restore character states
+   * - Rebuild hitbox/hurtbox state
+   * - Reset move state machines
+   *
+   * Game Logic:
+   * - Restore timer/score/health
+   * - Reapply game mode settings
+   *
+   * Physics:
+   * - Restore positions and vectors
+   * - Rebuild collision state
+   */
+}
+
+void NetPlayClient::ResimulateFrames(int start_frame, int end_frame)
+{
+  for (int frame = start_frame; frame <= end_frame; frame++)
+  {
+    /* TODO: Frame Simulation
+     * 1. Get correct inputs for this frame
+     * 2. Run minimal game logic:
+     *    - Combat system update
+     *    - Physics simulation
+     *    - Game logic processing
+     * 3. Skip rendering
+     * 4. Skip audio
+     * 5. Skip non-essential systems
+     */
+
+    // Get the correct inputs for this frame
+    GCPadStatus pad_status;
+    for (int pad = 0; pad < 4; pad++)
+    {
+      if (m_pad_map[pad] > 0)
+      {
+        // Get either real or predicted input
+        if (HasPreviousInput(pad))
+        {
+          pad_status = GetLastKnownInput(pad);
+        }
+        else
+        {
+          pad_status = GetNeutralPadStatus();
+        }
+
+        /* TODO: Apply Input
+         * Need to identify how inputs are processed by the game:
+         * 1. Input mapping
+         * 2. Move recognition
+         * 3. System response
+         */
+      }
+    }
+  }
+}
+// BT3 rollback: Packet loss helper functions
+bool NetPlayClient::ShouldCheckPacketLoss()
+{
+  // Check for packet loss periodically
+  return (m_current_frame % CHECK_FREQUENCY) == 0;
+}
+
+bool NetPlayClient::DetectPacketLoss(int pad_num)
+{
+  auto it = m_prediction_map.find(pad_num);
+  if (it == m_prediction_map.end())
+  {
+    return false;
+  }
+
+  // Count consecutive predictions
+  int consecutive_predictions = 0;
+  for (auto rit = it->second.rbegin(); rit != it->second.rend(); ++rit)
+  {
+    if (rit->is_prediction)
+    {
+      consecutive_predictions++;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  return consecutive_predictions >= MAX_CONSECUTIVE_PREDICTIONS;
+}
+
+void NetPlayClient::HandlePacketLoss(int pad_num)
+{
+  // Notify the user of connection issues
+ 
+
+  // TODO: implement recovery mechanisms:
+  // 1. Request immediate input resend from peer
+  // 2. Adjust prediction algorithm
+  // 3. Consider disconnecting if issues persist
+}
+
+// BT3 rollback end
+
 u64 NetPlayClient::GetInitialRTCValue() const
 {
   return m_initial_rtc;
