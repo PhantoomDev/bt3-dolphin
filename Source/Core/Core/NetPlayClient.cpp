@@ -15,6 +15,7 @@
 #include <tuple>
 #include <type_traits>
 #include <vector>
+#include <deque>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
