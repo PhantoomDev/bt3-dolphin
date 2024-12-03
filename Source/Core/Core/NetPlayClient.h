@@ -290,6 +290,7 @@ private:
   void OnPadHostData(sf::Packet& packet);
   void OnWiimoteData(sf::Packet& packet);
   void OnPadBuffer(sf::Packet& packet);
+  void OnInputDelay(sf::Packet& packet); // BT3 rollback: input delay
   void OnHostInputAuthority(sf::Packet& packet);
   void OnGolfSwitch(sf::Packet& packet);
   void OnGolfPrepare(sf::Packet& packet);
@@ -371,6 +372,8 @@ private:
   // BT3 rollback: Constants
   static constexpr int MAX_ROLLBACK_FRAMES = 7;
   static constexpr int MAX_CONSECUTIVE_PREDICTIONS = 10;
+  static constexpr float FRAME_TIME_MS = 33.33f;
+
   // BT3 rollback: State management structures
   /* TODO: Game State Management
    * Need to identify and implement:
@@ -404,21 +407,46 @@ private:
      *    - Environmental interactions
      */
   };
-
   std::deque<GameState> m_saved_states;
+
   // BT3 rollback: State management functions
   void SaveCurrentGameState();
   void LoadGameState(int frame);
   void ResimulateFrames(int start_frame, int end_frame);
+
   // BT3 rollback: Prediction map
   std::map<int, std::vector<InputPredictionState>> m_prediction_map;
   int m_current_frame = 0;
+
   // BT3 rollback: Network and packet loss handling
   bool ShouldCheckPacketLoss();
   bool DetectPacketLoss(int pad_num);
   void HandlePacketLoss(int pad_num);
-  static constexpr int CHECK_FREQUENCY = 30;  // How often to check for packet loss
-  
+  static constexpr int PACKET_LOSS_CHECK_FREQUENCY = 15; 
+
+  // BT3 rollback: Input delay buffer management
+  struct DelayedInput
+  {
+    GCPadStatus pad_data{};
+    int frame_number = 0;
+    bool is_real = false;
+  };
+  std::map<int, std::deque<DelayedInput>> m_delay_buffers;
+
+  // Current delay frames setting - can be 0 for pure rollback
+  int m_input_delay_frames = 0;
+  static constexpr int MAX_DELAY_BUFFER_SIZE = 5;
+
+  // Delay buffer management functions
+  void AddInputToDelayBuffer(int pad_num, int frame, const GCPadStatus& input, bool is_real);
+  GCPadStatus GetDelayedInput(int pad_num, int frame);
+  void CleanupDelayBuffers(int current_frame);
+  void SetInputDelay(int frames);
+  int GetInputDelay() const { return m_input_delay_frames; }
+  // Method to be called from UI or
+  // TODO: Might be in public external configuration
+  void ConfigureInputDelay(int frames);
+
 };
 
 void NetPlay_Enable(NetPlayClient* const np);

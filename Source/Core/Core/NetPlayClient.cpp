@@ -405,6 +405,10 @@ void NetPlayClient::OnData(sf::Packet& packet)
     OnPadBuffer(packet);
     break;
 
+  case MessageID::InputDelay: // BT3 rollback: Delay buffer
+    OnInputDelay(packet);
+    break;
+
   case MessageID::HostInputAuthority:
     OnHostInputAuthority(packet);
     break;
@@ -759,6 +763,14 @@ void NetPlayClient::OnPadBuffer(sf::Packet& packet)
 
   m_target_buffer_size = size;
   m_dialog->OnPadBufferChanged(size);
+}
+
+// BT3 rollback: receive input delay frames
+void NetPlayClient::OnInputDelay(sf::Packet& packet)
+{
+  int delay_frames;
+  packet >> delay_frames;
+  SetInputDelay(delay_frames);
 }
 
 void NetPlayClient::OnHostInputAuthority(sf::Packet& packet)
@@ -2132,12 +2144,15 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
   return true;
 }
 
-// BT3 rollback:
+// BT3 rollback: Modified GetNetPads() function to be used (remove or comment out the original when testing)
 // the version above uses dealy based approach (look up rollback vs delay on YT)
 // when testing will comment out the previous part so as to not destroy things
 // curently still in pseudo-code logic
 bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatus* pad_status)
 {
+  if (!m_is_running.IsSet())
+    return false;
+
   // Handle batching for polling all local pads at once
   if (IsFirstInGamePad(pad_nb) && batching)
   {
@@ -2147,89 +2162,68 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
     const int num_local_pads = NumLocalPads();
     for (int local_pad = 0; local_pad < num_local_pads; local_pad++)
     {
-      // Still send local inputs immediately
-      PollLocalPad(local_pad, packet);
+      // PollLocalPad returns bool and modifies packet internally
+      if (PollLocalPad(local_pad, packet))
+      {
+        // Get the pad status directly since PollLocalPad already processed it
+        const int ingame_pad = LocalPadToInGamePad(local_pad);
+        const GCPadStatus& local_input = m_last_pad_status[ingame_pad];
+
+        // Add to delay buffer
+        AddInputToDelayBuffer(ingame_pad, m_current_frame, local_input, true);
+      }
     }
     SendAsync(std::move(packet));
   }
 
-  // First safety check - are we still running?
-  if (!m_is_running.IsSet())
-  {
-    return false;
-  }
+  // Get input through delay buffer
+  GCPadStatus current_input = GetDelayedInput(pad_nb, m_current_frame);
 
-  // The following are pseudo-code for rollback logic
-  // Check if we have received real input
-  if (m_pad_buffer[pad_nb].Size() > 0)
+  // Check if we need to rollback
+  if (!m_pad_buffer[pad_nb].Empty())
   {
-    // We have real input - check if we need to rollback
+    // We received real input - compare with our delayed/predicted input
     GCPadStatus real_input;
     m_pad_buffer[pad_nb].Pop(real_input);
 
-    // Check if this differs from our prediction
-    if (HasPrediction(pad_nb, m_current_frame) &&
-        InputsDiffer(GetPredictedInput(pad_nb, m_current_frame), real_input))
+    const int input_frame = m_current_frame - m_input_delay_frames;
+
+    if (InputsDiffer(current_input, real_input))
     {
+      // Store the real input
+      AddInputToDelayBuffer(pad_nb, input_frame, real_input, true);
 
-      // Second safety check before starting rollback
-      if (!m_is_running.IsSet())
-      {
-        return false;
-      }
-
-      // Inputs differ - need to rollback
+      // Need to rollback and replay
       int rollback_frames = CalculateRollbackFrames(pad_nb);
+      if (rollback_frames > 0)
+      {
+        // Save current state
+        SaveCurrentGameState();
 
-      // Save current state before rollback
-      SaveCurrentGameState();
+        // Load state from before misprediction
+        LoadGameState(m_current_frame - rollback_frames);
 
-      // Rollback to last confirmed state
-      LoadGameState(m_current_frame - rollback_frames);
-
-      // Update prediction history with real input
-      UpdatePredictionHistory(pad_nb, m_current_frame, real_input);
-
-      // Re-simulate up to current frame with correct inputs
-      ResimulateFrames(m_current_frame - rollback_frames, m_current_frame);
+        // Replay with correct inputs
+        ResimulateFrames(m_current_frame - rollback_frames, m_current_frame);
+      }
     }
-
-    *pad_status = real_input;
   }
   else
   {
-    // No real input available - predict
-    GCPadStatus predicted_input;
-    if (HasPreviousInput(pad_nb))
-    {
-      // Use previous input as prediction
-      predicted_input = GetLastKnownInput(pad_nb);
-    }
-    else
-    {
-      // No previous input - use neutral state
-      predicted_input = GetNeutralPadStatus();
-    }
-
-    // Store prediction
-    StorePrediction(pad_nb, m_current_frame, predicted_input);
-    *pad_status = predicted_input;
-
-    // Handle packet loss detection
-    if (ShouldCheckPacketLoss())
-    {
-      if (DetectPacketLoss(pad_nb))
-      {
-        HandlePacketLoss(pad_nb);
-      }
-    }
-
-    m_current_frame++;
-    return true;
+    // No real input available - add prediction to delay buffer
+    AddInputToDelayBuffer(pad_nb, m_current_frame, current_input, false);
   }
 
-  // Fallback safety - should never reach here but good practice
-  return false;
+  *pad_status = current_input;
+  m_current_frame++;
+
+  // Periodically cleanup old inputs
+  if (m_current_frame % 60 == 0)
+  {
+    CleanupDelayBuffers(m_current_frame);
+  }
+
+  return true;
 }
 
 // BT3 rollback: Helper function implementations
@@ -2479,7 +2473,7 @@ void NetPlayClient::ResimulateFrames(int start_frame, int end_frame)
 bool NetPlayClient::ShouldCheckPacketLoss()
 {
   // Check for packet loss periodically
-  return (m_current_frame % CHECK_FREQUENCY) == 0;
+  return (m_current_frame % PACKET_LOSS_CHECK_FREQUENCY) == 0;
 }
 
 bool NetPlayClient::DetectPacketLoss(int pad_num)
@@ -2516,6 +2510,72 @@ void NetPlayClient::HandlePacketLoss(int pad_num)
   // 1. Request immediate input resend from peer
   // 2. Adjust prediction algorithm
   // 3. Consider disconnecting if issues persist
+}
+
+void NetPlayClient::AddInputToDelayBuffer(int pad_num, int frame, const GCPadStatus& input,
+                                          bool is_real)
+{
+  auto& buffer = m_delay_buffers[pad_num];
+
+  // Add new input
+  DelayedInput delayed_input{input, frame, is_real};
+  buffer.push_back(delayed_input);
+
+  // Keep buffer size in check
+  while (buffer.size() > MAX_DELAY_BUFFER_SIZE)
+  {
+    buffer.pop_front();
+  }
+}
+
+GCPadStatus NetPlayClient::GetDelayedInput(int pad_num, int frame)
+{
+  const auto& buffer = m_delay_buffers[pad_num];
+
+  // Look for input at target frame considering delay
+  int target_frame = frame - m_input_delay_frames;
+
+  auto it = std::find_if(buffer.begin(), buffer.end(), [target_frame](const DelayedInput& input) {
+    return input.frame_number == target_frame;
+  });
+
+  if (it != buffer.end())
+  {
+    return it->pad_data;
+  }
+
+  // If no input found, predict based on last known input
+  return GetLastKnownInput(pad_num);
+}
+
+void NetPlayClient::CleanupDelayBuffers(int current_frame)
+{
+  const int cleanup_before_frame = current_frame - MAX_ROLLBACK_FRAMES - m_input_delay_frames;
+
+  for (auto& [pad_num, buffer] : m_delay_buffers)
+  {
+    buffer.erase(std::remove_if(buffer.begin(), buffer.end(),
+                                [cleanup_before_frame](const DelayedInput& input) {
+                                  return input.frame_number < cleanup_before_frame;
+                                }),
+                 buffer.end());
+  }
+}
+
+void NetPlayClient::SetInputDelay(int frames)
+{
+  m_input_delay_frames = std::clamp(frames, MIN_INPUT_DELAY, MAX_INPUT_DELAY);
+}
+
+void NetPlayClient::ConfigureInputDelay(int frames)
+{
+  SetInputDelay(frames);
+
+  // Notify other players of delay change
+  sf::Packet packet;
+  packet << MessageID::InputDelay;
+  packet << m_input_delay_frames;
+  Send(packet);
 }
 
 // BT3 rollback end

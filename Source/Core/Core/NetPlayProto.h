@@ -151,6 +151,7 @@ enum class MessageID : u8
   PadBuffer = 0x62,
   PadHostData = 0x63,
   GBAConfig = 0x64,
+  InputDelay = 0x65, // BT3 rollback: delay buffer
 
   WiimoteData = 0x70,
   WiimoteMapping = 0x71,
@@ -261,6 +262,7 @@ struct InputPredictionState
   bool is_prediction;
   int frame_number;
 };
+
 // BT3 rollback: Network protocol structures for rollback
 struct RollbackRequest
 {
@@ -276,6 +278,10 @@ struct RollbackResponse
   u8 pad_num;
   GCPadStatus pad_data;
 };
+
+// BT3 rollback: Delay buffer
+static constexpr int MAX_INPUT_DELAY = 10;  // Maximum allowed input delay frames
+static constexpr int MIN_INPUT_DELAY = 0;   // Minimum allowed input delay frames
 
 std::string GetPlayerMappingString(PlayerId pid, const PadMappingArray& pad_map,
                                    const GBAConfigArray& gba_config,
