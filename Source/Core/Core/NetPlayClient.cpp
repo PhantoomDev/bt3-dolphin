@@ -2214,6 +2214,15 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
     AddInputToDelayBuffer(pad_nb, m_current_frame, current_input, false);
   }
 
+  // Handle packet loss detection
+  if (ShouldCheckPacketLoss())
+  {
+    if (DetectPacketLoss(pad_nb))
+    {
+      HandlePacketLoss(pad_nb);
+    }
+  }
+
   *pad_status = current_input;
   m_current_frame++;
 
