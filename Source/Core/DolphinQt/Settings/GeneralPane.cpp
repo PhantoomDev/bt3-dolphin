@@ -171,7 +171,7 @@ void GeneralPane::CreateBasic()
   for (int i = 10; i <= 200; i += 10)  // from 10% to 200%
   {
     QString str;
-    if (i != 100)
+    if (i != 120)
       str = QStringLiteral("%1%").arg(i);
     else
       str = tr("%1% (Normal Speed)").arg(i);
