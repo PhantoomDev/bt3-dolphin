@@ -17,6 +17,9 @@
 #include <QStyleHints>
 #include <QVBoxLayout>
 #include <QWindow>
+// BT3 rollback:
+#include <QSpinBox>
+#include <QPushButton>
 
 #include <fmt/format.h>
 
@@ -67,6 +70,8 @@
 #include "Core/State.h"
 #include "Core/System.h"
 #include "Core/WiiUtils.h"
+// BT3 rollback:
+#include "Core/CustomStateLoader.h"
 
 #include "DiscIO/DirectoryBlob.h"
 #include "DiscIO/NANDImporter.h"
@@ -604,6 +609,9 @@ void MainWindow::ConnectMenuBar()
   connect(m_game_list, &GameList::SelectionChanged, m_menu_bar, &MenuBar::SelectionChanged);
   connect(this, &MainWindow::ReadOnlyModeChanged, m_menu_bar, &MenuBar::ReadOnlyModeChanged);
   connect(this, &MainWindow::RecordingStatusChanged, m_menu_bar, &MenuBar::RecordingStatusChanged);
+
+  // BT3 rollback:
+  connect(m_menu_bar, &MenuBar::ShowCharacterLoader, this, &MainWindow::ShowCharacterLoader);
 }
 
 void MainWindow::ConnectHotkeys()
@@ -2044,4 +2052,108 @@ void MainWindow::ShowRiivolutionBootWidget(const UICommon::GameFile& game)
 
   AddRiivolutionPatches(boot_params.get(), std::move(w.GetPatches()));
   StartGame(std::move(boot_params));
+}
+
+// BT3 rollback: Prepare fight custom loader
+void MainWindow::ShowCharacterLoader()
+{
+  // Create a dialog to select characters
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Character Loader"));
+
+  QHBoxLayout* main_layout = new QHBoxLayout(&dialog);
+  QVBoxLayout* left_layout = new QVBoxLayout();
+  QVBoxLayout* right_layout = new QVBoxLayout();
+  main_layout->addLayout(left_layout);
+  main_layout->addLayout(right_layout);
+
+  // TODO: add more character selection boxes
+  //       change to text dropdown later 
+  // Add character selection widgets
+  QSpinBox* p1_chars[4];   // For player 1's character numbers (including char_no)
+  QSpinBox* p1_colors[3];  // For player 1's character colors
+  QSpinBox* p2_chars[4];   // For player 2's character numbers (including char_no)
+  QSpinBox* p2_colors[3];  // For player 2's character colors
+
+  // Initialize spinboxes in a loop
+  for (int i = 0; i < 4; i++)
+  {
+    p1_chars[i] = new QSpinBox();
+    p2_chars[i] = new QSpinBox();
+
+    // Add character number widgets
+    QString label = (i == 0) ? tr("Player %1 Char no:") : tr("Player %1 Char %2:");
+
+    left_layout->addWidget(new QLabel(label.arg(1).arg(i)));
+    left_layout->addWidget(p1_chars[i]);
+
+    right_layout->addWidget(new QLabel(label.arg(2).arg(i)));
+    right_layout->addWidget(p2_chars[i]);
+
+    // Add color widgets for characters (skip for char_no)
+    if (i > 0)
+    {
+      p1_colors[i - 1] = new QSpinBox();
+      p2_colors[i - 1] = new QSpinBox();
+
+      QString colorLabel = tr("Player %1 Char %2 Color:");
+      left_layout->addWidget(new QLabel(colorLabel.arg(1).arg(i)));
+      left_layout->addWidget(p1_colors[i - 1]);
+
+      right_layout->addWidget(new QLabel(colorLabel.arg(2).arg(i)));
+      right_layout->addWidget(p2_colors[i - 1]);
+    }
+  }
+
+  QSpinBox* select_map_id = new QSpinBox();
+  left_layout->addWidget(new QLabel(tr("Map ID:")));
+  left_layout->addWidget(select_map_id);
+
+  QPushButton* load_button = new QPushButton(tr("Load State"));
+  right_layout->addWidget(new QLabel(tr("Ready!")));
+  right_layout->addWidget(load_button);
+
+  connect(load_button, &QPushButton::clicked, this, [&dialog, p1_chars, p1_colors, p2_chars, p2_colors, select_map_id, this]()
+  {
+    // Get all ID data
+    std::array<u32, 14> char_arr = {};
+
+    // Fill Player 1's values (indices 0-6)
+    char_arr[0] = p1_chars[0]->value();  // char_no
+    for (int i = 1; i <= 3; i++)
+    {
+      int baseIdx = (i - 1) * 2 + 1;                      // Calculate position in target array
+      char_arr[baseIdx] = p1_chars[i]->value();           // Character value
+      char_arr[baseIdx + 1] = p1_colors[i - 1]->value();  // Color value
+    }
+
+    // Fill Player 2's values (indices 7-13)
+    char_arr[7] = p2_chars[0]->value();  // char_no
+    for (int i = 1; i <= 3; i++)
+    {
+      int baseIdx = (i - 1) * 2 + 8;                      // Calculate position in target array
+      char_arr[baseIdx] = p2_chars[i]->value();           // Character value
+      char_arr[baseIdx + 1] = p2_colors[i - 1]->value();  // Color value
+    }
+
+    // Map id
+    u32 map_id = select_map_id->value();
+    if (!m_custom_loader)
+      m_custom_loader = new CustomStateLoader(m_system);
+
+
+    // Pause and load prepare fight state
+    if (Core::GetState(m_system) == Core::State::Running)
+      Core::SetState(m_system, Core::State::Paused);
+    m_custom_loader->LoadPrepareCombat();
+    
+
+    // Inject all character ID info and resume running
+    m_custom_loader->SetSelectionValues(char_arr, map_id);
+    Core::SetState(m_system, Core::State::Running);
+
+    dialog.accept();
+  });
+
+  dialog.exec();
 }

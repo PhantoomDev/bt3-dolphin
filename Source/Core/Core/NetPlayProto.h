@@ -14,6 +14,7 @@
 #include "Core/HW/EXI/EXI_Device.h"
 #include "Core/HW/Sram.h"
 #include "VideoCommon/VideoConfig.h"
+#include "InputCommon/GCPadStatus.h"
 
 namespace DiscIO
 {

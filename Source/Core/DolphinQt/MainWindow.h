@@ -54,6 +54,9 @@ class WatchWidget;
 class WiiTASInputWindow;
 struct WindowSystemInfo;
 
+// BT3 rollback: Custom loader
+class CustomStateLoader;
+
 namespace Core
 {
 class System;
@@ -275,4 +278,8 @@ private:
   WatchWidget* m_watch_widget;
   CheatsManager* m_cheats_manager;
   QByteArray m_render_widget_geometry;
+
+  // BT3 rollback: CustomStateLoader
+  void ShowCharacterLoader();
+  CustomStateLoader* m_custom_loader = nullptr;
 };

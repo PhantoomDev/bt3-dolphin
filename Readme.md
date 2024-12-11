@@ -5,6 +5,8 @@ This is fork of Dolphin emulator specifically modified to support rollback netco
 
 Refer to the **[Original readme](/original_readme.md)** for dolphin build, run and more.
 
+For character loader: After building, copy the `CustomStates` Folder into the build `Sys` folder
+
 ## Features
 - Rollback netcode implementation
 - Virtual input device system
