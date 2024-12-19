@@ -422,6 +422,21 @@ void NetPlayDialog::ConnectWidgets()
   connect(m_chat_type_edit, &QLineEdit::textChanged, this,
           [this] { m_chat_send_button->setEnabled(!m_chat_type_edit->text().isEmpty()); });
 
+  // Character select
+  connect(m_p2_menu.ready_button, &QPushButton::clicked, [this] {
+    // change ready and change
+    if (m_p2_menu.is_ready)
+    {
+      m_p2_menu.is_ready = false;
+      m_p2_menu.ready_button->setText(tr("Ready"));
+    }
+    else
+    {
+      m_p2_menu.is_ready = true;
+      m_p2_menu.ready_button->setText(tr("Confirmed"));
+    }
+  });
+
   // Other
   connect(m_buffer_size_box, &QSpinBox::valueChanged, [this](int value) {
     if (value == m_buffer_size)
@@ -537,6 +552,12 @@ void NetPlayDialog::OnIndexRefreshFailed(const std::string error)
 
 void NetPlayDialog::OnStart()
 {
+  if (m_p2_menu.is_ready == false)
+  {
+    ModalMessageBox::critical(this, tr("Error"), tr("P2 is not ready."));
+    return;
+  }
+
   if (!Settings::Instance().GetNetPlayClient()->DoAllPlayersHaveGame())
   {
     if (ModalMessageBox::question(
@@ -560,6 +581,27 @@ void NetPlayDialog::OnStart()
     PanicAlertFmtT("Selected game doesn't exist in game list!");
     return;
   }
+  // Finished checking all fail states
+
+  // Get character select and map
+  // Player 1
+  m_select_chars[0] = m_p1_menu.char_no->value();
+  for (int i = 1; i <= m_p1_menu.char_ids.size(); i++)
+  {
+    int base_indx = 2 * i - 1;
+    m_select_chars[base_indx] = m_p1_menu.char_ids[i - 1]->value();
+    m_select_chars[base_indx + 1] = m_p1_menu.char_colors[i - 1]->value();
+  }
+  // Player 2
+  m_select_chars[m_p1_menu.char_ids.size() * 2 + 1] = m_p2_menu.char_no->value();
+  for (int i = 1; i <= m_p2_menu.char_ids.size(); i++)
+  {
+    int base_indx = 2 * i - 1 + 7;
+    m_select_chars[base_indx] = m_p2_menu.char_ids[i - 1]->value();
+    m_select_chars[base_indx + 1] = m_p2_menu.char_colors[i - 1]->value();
+  }
+  // map
+  m_select_map = m_p1_menu.map_id->value();
 
   if (Settings::Instance().GetNetPlayServer()->RequestStartGame())
     SetOptionsEnabled(false);
@@ -835,7 +877,42 @@ void NetPlayDialog::UpdateGUI()
     m_hostcode_action_button->setText(tr("Copy"));
     m_is_copy_button_retry = false;
   }
-  UpdateCharacterSelectLayout(IsHosting());
+
+  // BT3 rollback: Update character select layout
+  if (IsHosting())
+  {
+    // Enable P1 controls, disable P2 controls
+    m_p1_menu.char_no->setEnabled(true);
+    for (auto* input : m_p1_menu.char_ids)
+      input->setEnabled(true);
+    for (auto* input : m_p1_menu.char_colors)
+      input->setEnabled(true);
+    m_p1_menu.map_id->setEnabled(true);
+
+    m_p2_menu.char_no->setEnabled(false);
+    for (auto* input : m_p2_menu.char_ids)
+      input->setEnabled(false);
+    for (auto* input : m_p2_menu.char_colors)
+      input->setEnabled(false);
+    m_p2_menu.ready_button->setEnabled(false);
+  }
+  else
+  {
+    // vice versa
+    m_p1_menu.char_no->setEnabled(false);
+    for (auto* input : m_p1_menu.char_ids)
+      input->setEnabled(false);
+    for (auto* input : m_p1_menu.char_colors)
+      input->setEnabled(false);
+    m_p1_menu.map_id->setEnabled(false);
+
+    m_p2_menu.char_no->setEnabled(true);
+    for (auto* input : m_p2_menu.char_ids)
+      input->setEnabled(true);
+    for (auto* input : m_p2_menu.char_colors)
+      input->setEnabled(true);
+    m_p2_menu.ready_button->setEnabled(true);
+  }
 }
 
 // NetPlayUI methods
@@ -1352,41 +1429,3 @@ void NetPlayDialog::SetHostWiiSyncData(std::vector<u64> titles, std::string redi
   if (client)
     client->SetWiiSyncData(nullptr, std::move(titles), std::move(redirect_folder));
 }
-
-// BT3 rollback:
-void NetPlayDialog::UpdateCharacterSelectLayout(bool is_host)
-{
-  if (is_host)
-  {
-    // Enable P1 controls, disable P2 controls
-    m_p1_menu.char_no->setEnabled(true);
-    for (auto* input : m_p1_menu.char_ids)
-      input->setEnabled(true);
-    for (auto* input : m_p1_menu.char_colors)
-      input->setEnabled(true);
-    m_p1_menu.map_id->setEnabled(true);
-
-    m_p2_menu.char_no->setEnabled(false);
-    for (auto* input : m_p2_menu.char_ids)
-      input->setEnabled(false);
-    for (auto* input : m_p2_menu.char_colors)
-      input->setEnabled(false); 
-  }
-  else
-  {
-    // vice versa
-    m_p1_menu.char_no->setEnabled(false);
-    for (auto* input : m_p1_menu.char_ids)
-      input->setEnabled(false);
-    for (auto* input : m_p1_menu.char_colors)
-      input->setEnabled(false);
-    m_p1_menu.map_id->setEnabled(false);
-
-    m_p2_menu.char_no->setEnabled(true);
-    for (auto* input : m_p2_menu.char_ids)
-      input->setEnabled(true);
-    for (auto* input : m_p2_menu.char_colors)
-      input->setEnabled(true);
-  }
-}
-

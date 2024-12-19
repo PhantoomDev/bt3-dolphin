@@ -1542,16 +1542,18 @@ void NetPlayClient::OnInputDelay(sf::Packet& packet)
 // BT3 character select
 void NetPlayClient::OnCharacterSelect(sf::Packet& packet)
 {
+  bool is_host;
   std::array<u32, 14> chars;
   u32 map_id;
-  bool is_host;
-  packet >> is_host;
 
+  packet >> is_host;
   for (auto& c : chars)
     packet >> c;
   packet >> map_id;
 
- // m_dialog->HandleReceivedCharacterSelections(chars, map_id, is_host);
+  // Store selections
+  m_select_chars = chars;
+  m_select_map = map_id;
 }
 
 void NetPlayClient::Send(const sf::Packet& packet, const u8 channel_id)

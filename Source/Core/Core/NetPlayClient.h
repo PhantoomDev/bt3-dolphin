@@ -449,6 +449,8 @@ private:
   // TODO: Might be in public external configuration
   void ConfigureInputDelay(int frames);
 
+  std::array<u32, 14> m_select_chars;
+  u32 m_select_map;
 };
 
 void NetPlay_Enable(NetPlayClient* const np);

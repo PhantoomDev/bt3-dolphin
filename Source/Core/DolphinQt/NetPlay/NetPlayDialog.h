@@ -185,9 +185,6 @@ private:
   // Add new member functions for character select
   void CreateCharacterSelectLayout();
   void UpdateCharacterSelectLayout(bool is_host);
-  void OnCharacterSelectionsChanged();
-  void SendCharacterSelections();
-  void HandleReceivedCharacterSelections(const std::array<u32, 14>& chars, u32 map_id);
 
   // New UI elements for character select
   QGroupBox* m_char_select_box;
@@ -212,7 +209,7 @@ private:
   } m_p2_menu;
 
   // State tracking
-  std::array<u32, 14> m_pending_chars{};
-  u32 m_pending_map{};
+  std::array<u32, 14> m_select_chars;
+  u32 m_select_map;
   bool m_char_select_active{false};
 };
