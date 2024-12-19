@@ -62,6 +62,45 @@ Based on Slippi architecture:
   - [ ] Improve rollback performance
   - [ ] Minimize network overhead
 
+### Prototype rough outline
+```
+## Modded Dolphin Side:
+1. Basic UI
+   - Simple dropdown menus for characters/stage selection
+   - Host/Join buttons
+
+2. Session Flow
+   Host: (p2p protocol)
+   - Pick both chars + stage
+   - Wait for player
+
+   Join: (join with p2p code)
+   - Auto run ping test -> calculate delay/rollback frames
+   - Pick own char
+
+3. When both ready:
+   - Map selections to game's character/stage IDs
+   - Send to game's duel mode function
+   - Jump to combat prepare state
+
+4. During Fight:
+   Normal case:
+   - Run game normally when predictions correct
+
+   When desync/rollback needed:
+   Ideal: 
+   - Run only necessary game logic (requires combat game state to recalculate)
+   - Recalculate with new predicted inputs
+   - Render current frame
+   - Resume
+
+   Fast prototype fallback:
+   - Brute force replay entire game state from wrong input to current frame
+   - Resume
+
+Done!
+```
+
 ## Technical Considerations
 
 ### Virtual Input System
