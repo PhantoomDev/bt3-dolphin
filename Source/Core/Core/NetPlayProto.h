@@ -253,6 +253,30 @@ struct PadDetails
   bool hide_gba = false;
 };
 
+// BT3 rollback: Prediction state
+struct InputPredictionState
+{
+  GCPadStatus predicted_input;
+  GCPadStatus actual_input;
+  bool is_prediction;
+  int frame_number;
+};
+// BT3 rollback: Network protocol structures for rollback
+struct RollbackRequest
+{
+  u32 frame;
+  PlayerId requesting_pid;
+  u8 pad_num;
+};
+
+struct RollbackResponse
+{
+  u32 frame;
+  PlayerId responding_pid;
+  u8 pad_num;
+  GCPadStatus pad_data;
+};
+
 std::string GetPlayerMappingString(PlayerId pid, const PadMappingArray& pad_map,
                                    const GBAConfigArray& gba_config,
                                    const PadMappingArray& wiimote_map);

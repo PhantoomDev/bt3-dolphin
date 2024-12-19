@@ -350,6 +350,74 @@ private:
   std::unique_ptr<IOS::HLE::FS::FileSystem> m_wii_sync_fs;
   std::vector<u64> m_wii_sync_titles;
   std::string m_wii_sync_redirect_folder;
+
+  // BT3 rollback:
+  // Helper functions for rollback netcode implementation
+  bool HasPrediction(int pad_num, int frame);
+  GCPadStatus GetPredictedInput(int pad_num, int frame);
+  bool InputsDiffer(const GCPadStatus& a, const GCPadStatus& b);
+  int CalculateRollbackFrames(int pad_num);
+  void UpdatePredictionHistory(int pad_num, int frame, const GCPadStatus& real_input);
+  void StorePrediction(int pad_num, int frame, const GCPadStatus& predicted_input);
+  GCPadStatus GetLastKnownInput(int pad_num);
+  bool HasPreviousInput(int pad_num);
+  static GCPadStatus GetNeutralPadStatus()
+  {
+    GCPadStatus status{};
+    status.stickX = status.stickY = status.substickX = status.substickY = 128;
+    return status;
+  }
+  // BT3 rollback: Constants
+  static constexpr int MAX_ROLLBACK_FRAMES = 7;
+  static constexpr int MAX_CONSECUTIVE_PREDICTIONS = 10;
+  // BT3 rollback: State management structures
+  /* TODO: Game State Management
+   * Need to identify and implement:
+   * 1. What constitutes a complete game state
+   * 2. Minimum state required for rollback
+   * 3. State serialization format
+   * 4. Efficient state comparison for desync detection
+   */
+  struct GameState
+  {
+    // Core system state
+    std::vector<u8> memory_state;
+    std::vector<u8> register_state;
+    int frame_number;  // Moving frame_number into the data struct itself
+
+    /* TODO: Game State Components
+     * As we reverse engineer the game, we'll identify and document:
+     * 1. Combat System State
+     *    - Character positions and states
+     *    - Hit/hurtbox information
+     *    - Current move states
+     *
+     * 2. Game Logic State
+     *    - Round timer
+     *    - Score/health values
+     *    - Game mode flags
+     *
+     * 3. Physics State
+     *    - Movement vectors
+     *    - Collision states
+     *    - Environmental interactions
+     */
+  };
+
+  std::deque<GameState> m_saved_states;
+  // BT3 rollback: State management functions
+  void SaveCurrentGameState();
+  void LoadGameState(int frame);
+  void ResimulateFrames(int start_frame, int end_frame);
+  // BT3 rollback: Prediction map
+  std::map<int, std::vector<InputPredictionState>> m_prediction_map;
+  int m_current_frame = 0;
+  // BT3 rollback: Network and packet loss handling
+  bool ShouldCheckPacketLoss();
+  bool DetectPacketLoss(int pad_num);
+  void HandlePacketLoss(int pad_num);
+  static constexpr int CHECK_FREQUENCY = 30;  // How often to check for packet loss
+  
 };
 
 void NetPlay_Enable(NetPlayClient* const np);
