@@ -1539,21 +1539,21 @@ void NetPlayClient::OnInputDelay(sf::Packet& packet)
   SetInputDelay(delay_frames);
 }
 
-// BT3 character select
+// BT3 rollback: character select
 void NetPlayClient::OnCharacterSelect(sf::Packet& packet)
 {
-  bool is_host;
-  std::array<u32, 14> chars;
-  u32 map_id;
-
-  packet >> is_host;
-  for (auto& c : chars)
+  // Read character data
+  for (auto& c : m_select_chars)
     packet >> c;
-  packet >> map_id;
+  packet >> m_select_map;
 
-  // Store selections
-  m_select_chars = chars;
-  m_select_map = map_id;
+  bool is_ready;
+  packet >> is_ready;
+  m_p2_ready = is_ready;
+
+  // Update dialog if available
+  if (m_dialog)
+    m_dialog->OnCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
 }
 
 void NetPlayClient::Send(const sf::Packet& packet, const u8 channel_id)
@@ -2847,6 +2847,21 @@ void NetPlayClient::SendPowerButtonEvent()
   sf::Packet packet;
   packet << MessageID::PowerButton;
   SendAsync(std::move(packet));
+}
+
+void NetPlayClient::SendCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id,
+                                              bool p2_ready)
+{
+  sf::Packet spac;
+  spac << MessageID::CharacterSelect;
+
+  // Send all character data
+  for (const auto& c : chars)
+    spac << c;
+  spac << map_id;
+  spac << p2_ready;
+
+  SendAsync(std::move(spac));
 }
 
 void NetPlayClient::RequestGolfControl(const PlayerId pid)

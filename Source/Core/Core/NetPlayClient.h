@@ -74,6 +74,7 @@ public:
   virtual void OnGameStartAborted() = 0;
   virtual void OnGolferChanged(bool is_golfer, const std::string& golfer_name) = 0;
   virtual void OnTtlDetermined(u8 ttl) = 0;
+  virtual void OnCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id, bool p2_ready) = 0;
 
   virtual bool IsRecording() = 0;
   virtual std::shared_ptr<const UICommon::GameFile>
@@ -132,6 +133,8 @@ public:
   void SendChatMessage(const std::string& msg);
   void RequestStopGame();
   void SendPowerButtonEvent();
+  // BT3 rollback: character select
+  void SendCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id, bool p2_ready);
   void RequestGolfControl(PlayerId pid);
   void RequestGolfControl();
   std::string GetCurrentGolfer();
@@ -451,6 +454,7 @@ private:
 
   std::array<u32, 14> m_select_chars;
   u32 m_select_map;
+  bool m_p2_ready = false;
 };
 
 void NetPlay_Enable(NetPlayClient* const np);

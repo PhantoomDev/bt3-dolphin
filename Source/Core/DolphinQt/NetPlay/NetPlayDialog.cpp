@@ -423,19 +423,69 @@ void NetPlayDialog::ConnectWidgets()
           [this] { m_chat_send_button->setEnabled(!m_chat_type_edit->text().isEmpty()); });
 
   // Character select
-  connect(m_p2_menu.ready_button, &QPushButton::clicked, [this] {
-    // change ready and change
-    if (m_p2_menu.is_ready)
+  if (IsHosting())
+  {
+    connect(m_p1_menu.char_no, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
+      // Update local state
+      m_select_chars[0] = value;
+
+      // Tell NetPlayClient to send the update
+      if (auto client = Settings::Instance().GetNetPlayClient())
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+    });
+    // connect character ID and color boxes
+    for (int i = 0; i < 3; i++)
     {
-      m_p2_menu.is_ready = false;
-      m_p2_menu.ready_button->setText(tr("Ready"));
+      connect(m_p1_menu.char_ids[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
+                m_select_chars[2 * i + 1] = value;
+        if (auto client = Settings::Instance().GetNetPlayClient())
+              client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+      });
+      connect(m_p1_menu.char_colors[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
+                m_select_chars[2 * i + 2] = value;
+        if (auto client = Settings::Instance().GetNetPlayClient())
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+      });
     }
-    else
+    // connect map ID box
+    connect(m_p1_menu.map_id, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
+      m_select_map = value;
+      if (auto client = Settings::Instance().GetNetPlayClient())
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+    });
+  }
+  else
+  {
+    // Player 2
+    connect(m_p2_menu.char_no, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
+      m_select_chars[7] = value;
+      if (auto client = Settings::Instance().GetNetPlayClient())
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+    });
+    // connect character ID and color boxes
+    for (int i = 0; i < 3; i++)
     {
-      m_p2_menu.is_ready = true;
-      m_p2_menu.ready_button->setText(tr("Confirmed"));
+      connect(m_p2_menu.char_ids[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
+        m_select_chars[2 * i + 1 + 7] = value;
+        if (auto client = Settings::Instance().GetNetPlayClient())
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+      });
+      connect(m_p2_menu.char_colors[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
+        m_select_chars[2 * i + 2 + 7] = value;
+        if (auto client = Settings::Instance().GetNetPlayClient())
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+      });
     }
-  });
+    // connect ready button
+    connect(m_p2_menu.ready_button, &QPushButton::clicked, [this] {
+      // change ready and change
+      m_p2_menu.is_ready = !m_p2_menu.is_ready;
+      m_p2_menu.ready_button->setText(m_p2_menu.is_ready ? tr("Confirmed") : tr("Ready"));
+      if (auto client = Settings::Instance().GetNetPlayClient())
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+    });
+
+  }
 
   // Other
   connect(m_buffer_size_box, &QSpinBox::valueChanged, [this](int value) {
@@ -1195,6 +1245,45 @@ void NetPlayDialog::OnTtlDetermined(u8 ttl)
 {
   DisplayMessage(tr("Using TTL %1 for probe packet").arg(QString::number(ttl)), "");
 }
+
+// BT3 rollback: character selection update
+void NetPlayDialog::OnCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id,
+                                            bool p2_ready)
+{
+  m_select_chars = chars;
+  m_select_map = map_id;
+
+  // Only update P2 ready button text if we're the host
+  if (IsHosting())
+  {
+    m_p2_menu.is_ready = p2_ready;
+    m_p2_menu.ready_button->setText(p2_ready ? tr("Confirmed") : tr("Ready"));
+  }
+
+  // Update all spinbox values to match received data
+  if (IsHosting())
+  {
+    // Update P2 controls
+    m_p2_menu.char_no->setValue(m_select_chars[7]);
+    for (int i = 0; i < 3; i++)
+    {
+      m_p2_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1 + 7]);
+      m_p2_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2 + 7]);
+    }
+  }
+  else
+  {
+    // Update P1 controls
+    m_p1_menu.char_no->setValue(m_select_chars[0]);
+    for (int i = 0; i < 3; i++)
+    {
+      m_p1_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1]);
+      m_p1_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2]);
+    }
+    m_p1_menu.map_id->setValue(m_select_map);
+  }
+}
+
 
 bool NetPlayDialog::IsRecording()
 {

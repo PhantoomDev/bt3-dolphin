@@ -72,6 +72,7 @@ public:
   void OnGameStartAborted() override;
   void OnGolferChanged(bool is_golfer, const std::string& golfer_name) override;
   void OnTtlDetermined(u8 ttl) override;
+  void OnCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id, bool p2_ready) override;
 
   void OnIndexAdded(bool success, const std::string error) override;
   void OnIndexRefreshFailed(const std::string error) override;
@@ -184,7 +185,6 @@ private:
   // BT3 rollback:
   // Add new member functions for character select
   void CreateCharacterSelectLayout();
-  void UpdateCharacterSelectLayout(bool is_host);
 
   // New UI elements for character select
   QGroupBox* m_char_select_box;
