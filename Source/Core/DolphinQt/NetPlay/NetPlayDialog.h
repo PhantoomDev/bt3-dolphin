@@ -180,4 +180,39 @@ private:
   bool m_host_input_authority = false;
 
   StartGameCallback m_start_game_callback;
+
+  // BT3 rollback:
+  // Add new member functions for character select
+  void CreateCharacterSelectLayout();
+  void UpdateCharacterSelectLayout(bool is_host);
+  void OnCharacterSelectionsChanged();
+  void SendCharacterSelections();
+  void HandleReceivedCharacterSelections(const std::array<u32, 14>& chars, u32 map_id);
+
+  // New UI elements for character select
+  QGroupBox* m_char_select_box;
+
+  // Player 1 (host) menu
+  struct Player1Menu
+  {
+    QSpinBox* char_no;
+    std::vector<QSpinBox*> char_ids;
+    std::vector<QSpinBox*> char_colors;
+    QSpinBox* map_id;
+  } m_p1_menu;
+
+  // Player 2 (client) menu
+  struct Player2Menu
+  {
+    QSpinBox* char_no;
+    std::vector<QSpinBox*> char_ids;
+    std::vector<QSpinBox*> char_colors;
+    QPushButton* ready_button;
+    bool is_ready;
+  } m_p2_menu;
+
+  // State tracking
+  std::array<u32, 14> m_pending_chars{};
+  u32 m_pending_map{};
+  bool m_char_select_active{false};
 };

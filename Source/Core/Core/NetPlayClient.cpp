@@ -357,6 +357,10 @@ void NetPlayClient::OnData(sf::Packet& packet)
     OnPlayerLeave(packet);
     break;
 
+  case MessageID::CharacterSelect: // BT3 rollback: character select
+    OnCharacterSelect(packet);
+    break;
+
   case MessageID::ChatMessage:
     OnChatMessage(packet);
     break;
@@ -763,14 +767,6 @@ void NetPlayClient::OnPadBuffer(sf::Packet& packet)
 
   m_target_buffer_size = size;
   m_dialog->OnPadBufferChanged(size);
-}
-
-// BT3 rollback: receive input delay frames
-void NetPlayClient::OnInputDelay(sf::Packet& packet)
-{
-  int delay_frames;
-  packet >> delay_frames;
-  SetInputDelay(delay_frames);
 }
 
 void NetPlayClient::OnHostInputAuthority(sf::Packet& packet)
@@ -1533,6 +1529,29 @@ void NetPlayClient::OnGameDigestAbort()
 {
   m_should_compute_game_digest = false;
   m_dialog->AbortGameDigest();
+}
+
+// BT3 rollback: receive input delay frames
+void NetPlayClient::OnInputDelay(sf::Packet& packet)
+{
+  int delay_frames;
+  packet >> delay_frames;
+  SetInputDelay(delay_frames);
+}
+
+// BT3 character select
+void NetPlayClient::OnCharacterSelect(sf::Packet& packet)
+{
+  std::array<u32, 14> chars;
+  u32 map_id;
+  bool is_host;
+  packet >> is_host;
+
+  for (auto& c : chars)
+    packet >> c;
+  packet >> map_id;
+
+ // m_dialog->HandleReceivedCharacterSelections(chars, map_id, is_host);
 }
 
 void NetPlayClient::Send(const sf::Packet& packet, const u8 channel_id)

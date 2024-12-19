@@ -290,7 +290,6 @@ private:
   void OnPadHostData(sf::Packet& packet);
   void OnWiimoteData(sf::Packet& packet);
   void OnPadBuffer(sf::Packet& packet);
-  void OnInputDelay(sf::Packet& packet); // BT3 rollback: input delay
   void OnHostInputAuthority(sf::Packet& packet);
   void OnGolfSwitch(sf::Packet& packet);
   void OnGolfPrepare(sf::Packet& packet);
@@ -319,6 +318,9 @@ private:
   void OnGameDigestResult(sf::Packet& packet);
   void OnGameDigestError(sf::Packet& packet);
   void OnGameDigestAbort();
+  // BT3 rollback:
+  void OnInputDelay(sf::Packet& packet);
+  void OnCharacterSelect(sf::Packet& packet);
 
   bool m_is_connected = false;
   ConnectionState m_connection_state = ConnectionState::Failure;

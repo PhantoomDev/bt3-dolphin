@@ -109,6 +109,7 @@ NetPlayDialog::NetPlayDialog(const GameListModel& game_list_model,
   ResetExternalIP();
   CreateChatLayout();
   CreatePlayersLayout();
+  CreateCharacterSelectLayout();
   CreateMainLayout();
   LoadSettings();
   ConnectWidgets();
@@ -249,6 +250,7 @@ void NetPlayDialog::CreateMainLayout()
 
   m_splitter->addWidget(m_chat_box);
   m_splitter->addWidget(m_players_box);
+  m_splitter->addWidget(m_char_select_box);
 
   auto* options_widget = new QGridLayout;
 
@@ -317,6 +319,73 @@ void NetPlayDialog::CreatePlayersLayout()
   layout->addWidget(m_assign_ports_button, 3, 0, 1, -1);
 
   m_players_box->setLayout(layout);
+}
+
+// BT3 rollback:
+void NetPlayDialog::CreateCharacterSelectLayout()
+{
+  m_char_select_box = new QGroupBox(tr("Character Select"));
+  QGridLayout* layout = new QGridLayout;
+
+  // Create Player 1 section (visible only when hosting)
+  QGroupBox* p1_group = new QGroupBox(tr("Player 1 (Host)"));
+  QGridLayout* p1_layout = new QGridLayout;
+
+  m_p1_menu.char_no = new QSpinBox;
+  p1_layout->addWidget(new QLabel(tr("Number of Character")), 0, 0);
+  p1_layout->addWidget(m_p1_menu.char_no, 0, 1);
+
+  // Create character/color inputs for P1
+  for (int i = 0; i < 3; i++)
+  {
+    QSpinBox* p1_char = new QSpinBox;
+    QSpinBox* p1_color = new QSpinBox;
+    m_p1_menu.char_ids.push_back(p1_char);
+    m_p1_menu.char_colors.push_back(p1_color);
+
+    p1_layout->addWidget(new QLabel(tr("Character %1").arg(i + 1)), i + 1, 0);
+    p1_layout->addWidget(m_p1_menu.char_ids[i], i + 1, 1);
+    p1_layout->addWidget(new QLabel(tr("Color")), i + 1, 2);
+    p1_layout->addWidget(m_p1_menu.char_colors[i], i + 1, 3);
+  }
+
+  m_p1_menu.map_id = new QSpinBox;
+  p1_layout->addWidget(new QLabel(tr("Map")), 4, 0);
+  p1_layout->addWidget(m_p1_menu.map_id, 4, 1);
+
+  p1_group->setLayout(p1_layout);
+
+  // P2 section
+  QGroupBox* p2_group = new QGroupBox(tr("Player 2 (Guest)"));
+  QGridLayout* p2_layout = new QGridLayout;
+
+  m_p2_menu.char_no = new QSpinBox;
+  p2_layout->addWidget(new QLabel(tr("Number of Character")), 0, 0);
+  p2_layout->addWidget(m_p2_menu.char_no, 0, 1);
+
+  // Create character/color inputs for P2
+  for (int i = 0; i < 3; i++)
+  {
+    QSpinBox* p2_char = new QSpinBox;
+    QSpinBox* p2_color = new QSpinBox;
+    m_p2_menu.char_ids.push_back(p2_char);
+    m_p2_menu.char_colors.push_back(p2_color);
+
+    p2_layout->addWidget(new QLabel(tr("Character %1").arg(i + 1)), i + 1, 0);
+    p2_layout->addWidget(m_p2_menu.char_ids[i], i + 1, 1);
+    p2_layout->addWidget(new QLabel(tr("Color")), i + 1, 2);
+    p2_layout->addWidget(m_p2_menu.char_colors[i], i + 1, 3);
+  }
+
+  m_p2_menu.ready_button = new QPushButton(tr("Ready"));
+  p2_layout->addWidget(m_p2_menu.ready_button, 5, 0, 1, 4);
+  p2_group->setLayout(p2_layout);
+
+  // Add both sections to main layout
+  layout->addWidget(p1_group, 0, 0);
+  layout->addWidget(p2_group, 0, 1);
+
+  m_char_select_box->setLayout(layout);
 }
 
 void NetPlayDialog::ConnectWidgets()
@@ -766,6 +835,7 @@ void NetPlayDialog::UpdateGUI()
     m_hostcode_action_button->setText(tr("Copy"));
     m_is_copy_button_retry = false;
   }
+  UpdateCharacterSelectLayout(IsHosting());
 }
 
 // NetPlayUI methods
@@ -1282,3 +1352,41 @@ void NetPlayDialog::SetHostWiiSyncData(std::vector<u64> titles, std::string redi
   if (client)
     client->SetWiiSyncData(nullptr, std::move(titles), std::move(redirect_folder));
 }
+
+// BT3 rollback:
+void NetPlayDialog::UpdateCharacterSelectLayout(bool is_host)
+{
+  if (is_host)
+  {
+    // Enable P1 controls, disable P2 controls
+    m_p1_menu.char_no->setEnabled(true);
+    for (auto* input : m_p1_menu.char_ids)
+      input->setEnabled(true);
+    for (auto* input : m_p1_menu.char_colors)
+      input->setEnabled(true);
+    m_p1_menu.map_id->setEnabled(true);
+
+    m_p2_menu.char_no->setEnabled(false);
+    for (auto* input : m_p2_menu.char_ids)
+      input->setEnabled(false);
+    for (auto* input : m_p2_menu.char_colors)
+      input->setEnabled(false); 
+  }
+  else
+  {
+    // vice versa
+    m_p1_menu.char_no->setEnabled(false);
+    for (auto* input : m_p1_menu.char_ids)
+      input->setEnabled(false);
+    for (auto* input : m_p1_menu.char_colors)
+      input->setEnabled(false);
+    m_p1_menu.map_id->setEnabled(false);
+
+    m_p2_menu.char_no->setEnabled(true);
+    for (auto* input : m_p2_menu.char_ids)
+      input->setEnabled(true);
+    for (auto* input : m_p2_menu.char_colors)
+      input->setEnabled(true);
+  }
+}
+

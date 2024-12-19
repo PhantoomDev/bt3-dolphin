@@ -138,6 +138,12 @@ enum class MessageID : u8
   PlayerJoin = 0x10,
   PlayerLeave = 0x11,
 
+  // BT3 rollback: character select
+  CharacterSelect = 0x20,
+  CharacterSelectReady = 0x21,
+  StartCharacterSelect = 0x22,
+  EndCharacterSelect = 0x23,
+
   ChatMessage = 0x30,
 
   ChunkedDataStart = 0x40,

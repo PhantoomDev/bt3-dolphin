@@ -282,7 +282,7 @@ void MenuBar::AddToolsMenu()
   m_character_loader =
       tools_menu->addAction(tr("Character Loader"), this, &MenuBar::ShowCharacterLoader);
   
-  // Here for enabling the menu option only when not uninitialized
+  // Here for enabling the menu option only when not uninitialized (when a game is running)
   m_character_loader->setEnabled(Core::GetState(Core::System::GetInstance()) !=
                                  Core::State::Uninitialized); 
 
@@ -1130,7 +1130,7 @@ void MenuBar::UpdateToolsMenu(const Core::State state)
   }
 
   // BT3 rollback:
-  // Update character loader menu when game is not uninitialized
+  // Update character loader menu when game is not uninitialized (when a game is running)
   m_character_loader->setEnabled(Core::GetState(Core::System::GetInstance()) !=
                                  Core::State::Uninitialized);
 }
