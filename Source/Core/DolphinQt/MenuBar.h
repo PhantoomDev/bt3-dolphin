@@ -125,6 +125,9 @@ signals:
   void RecordingStatusChanged(bool recording);
   void ReadOnlyModeChanged(bool read_only);
 
+  // BT3 rollback:
+  void ShowCharacterLoader();
+
 private:
   void OnEmulationStateChanged(Core::State state);
   void OnConfigChanged();
@@ -157,6 +160,9 @@ private:
   void CheckNAND();
   void NANDExtractCertificates();
   void ChangeDebugFont();
+
+  // BT3 rollback:
+  void addCharacterLoaderOption(QMenu* tools_menu);
 
   // Debugging UI
   void ClearSymbols();
@@ -287,6 +293,9 @@ private:
   QAction* m_jit_systemregisters_off;
   QAction* m_jit_branch_off;
   QAction* m_jit_register_cache_off;
+
+  // BT3 rollback:
+  QAction* m_character_loader;
 
   bool m_game_selected = false;
 };

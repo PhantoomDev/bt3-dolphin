@@ -278,6 +278,14 @@ void MenuBar::AddToolsMenu()
 
   tools_menu->addSeparator();
 
+    // BT3 rollback:
+  m_character_loader =
+      tools_menu->addAction(tr("Character Loader"), this, &MenuBar::ShowCharacterLoader);
+  
+  // Here for enabling the menu option only when not uninitialized
+  m_character_loader->setEnabled(Core::GetState(Core::System::GetInstance()) !=
+                                 Core::State::Uninitialized); 
+
   tools_menu->addAction(tr("Start &NetPlay..."), this, &MenuBar::StartNetPlay);
   tools_menu->addAction(tr("Browse &NetPlay Sessions...."), this, &MenuBar::BrowseNetPlay);
 
@@ -1120,6 +1128,11 @@ void MenuBar::UpdateToolsMenu(const Core::State state)
     if (enable_wiimotes)
       wii_remote->setChecked(bt->AccessWiimoteByIndex(i)->IsConnected());
   }
+
+  // BT3 rollback:
+  // Update character loader menu when game is not uninitialized
+  m_character_loader->setEnabled(Core::GetState(Core::System::GetInstance()) !=
+                                 Core::State::Uninitialized);
 }
 
 void MenuBar::InstallWAD()

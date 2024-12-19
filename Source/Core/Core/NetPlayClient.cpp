@@ -2143,7 +2143,7 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
 
   return true;
 }
-
+/*
 // BT3 rollback: Modified GetNetPads() function to be used (remove or comment out the original when testing)
 // the version above uses dealy based approach (look up rollback vs delay on YT)
 // when testing will comment out the previous part so as to not destroy things
@@ -2234,7 +2234,7 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
 
   return true;
 }
-
+*/
 // BT3 rollback: Helper function implementations
 bool NetPlayClient::HasPrediction(int pad_num, int frame)
 {
