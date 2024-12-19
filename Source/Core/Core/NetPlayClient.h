@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <deque>
 
 #include "Common/CommonTypes.h"
 #include "Common/Event.h"
@@ -383,7 +384,7 @@ private:
     // Core system state
     std::vector<u8> memory_state;
     std::vector<u8> register_state;
-    int frame_number;  // Moving frame_number into the data struct itself
+    int frame_number;
 
     /* TODO: Game State Components
      * As we reverse engineer the game, we'll identify and document:
