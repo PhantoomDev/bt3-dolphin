@@ -10,6 +10,7 @@
 #include <QDialog>
 #include <QMenuBar>
 #include <QRadioButton>
+#include <QTimer>
 
 #include "Common/Lazy.h"
 #include "Core/NetPlayClient.h"
@@ -209,7 +210,7 @@ private:
     QRadioButton* ready_button;
   } m_p2_menu;
 
-  // State tracking
+  // Character select data
   std::array<u32, 14> m_select_chars = {};
   u32 m_select_map = 0;
   bool m_p2_ready = false;

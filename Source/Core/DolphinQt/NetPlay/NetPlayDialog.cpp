@@ -605,25 +605,6 @@ void NetPlayDialog::ConnectWidgets()
   connect(m_hide_remote_gbas_action, &QAction::toggled, this, &NetPlayDialog::SaveSettings);
 }
 
-void NetPlayDialog::UpdateSelectIds()
-{
-  m_select_chars[0] = m_p1_menu.char_no->value();
-  for (int i = 0; i < 3; i++)
-  {
-    m_select_chars[2 * i + 1] = m_p1_menu.char_ids[i]->value();
-    m_select_chars[2 * i + 2] = m_p1_menu.char_colors[i]->value();
-  }
-  m_select_chars[7] = m_p2_menu.char_no->value();
-  for (int i = 0; i < 3; i++)
-  {
-    m_select_chars[2 * i + 1 + 7] = m_p2_menu.char_ids[i]->value();
-    m_select_chars[2 * i + 2 + 7] = m_p2_menu.char_colors[i]->value();
-  }
-  m_select_map = m_p1_menu.map_id->value();
-
-  m_p2_ready = m_p2_menu.ready_button->isChecked();
-}
-
 void NetPlayDialog::SendMessage(const std::string& msg)
 {
   Settings::Instance().GetNetPlayClient()->SendChatMessage(msg);
@@ -1307,44 +1288,66 @@ void NetPlayDialog::OnTtlDetermined(u8 ttl)
 }
 
 // BT3 rollback: character selection update
+void NetPlayDialog::UpdateSelectIds()
+{
+  m_select_chars[0] = m_p1_menu.char_no->value();
+  for (int i = 0; i < 3; i++)
+  {
+    m_select_chars[2 * i + 1] = m_p1_menu.char_ids[i]->value();
+    m_select_chars[2 * i + 2] = m_p1_menu.char_colors[i]->value();
+  }
+  m_select_chars[7] = m_p2_menu.char_no->value();
+  for (int i = 0; i < 3; i++)
+  {
+    m_select_chars[2 * i + 1 + 7] = m_p2_menu.char_ids[i]->value();
+    m_select_chars[2 * i + 2 + 7] = m_p2_menu.char_colors[i]->value();
+  }
+  m_select_map = m_p1_menu.map_id->value();
+
+  m_p2_ready = m_p2_menu.ready_button->isChecked();
+
+}
+
 void NetPlayDialog::OnCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id,
                                             bool p2_ready)
 {
-  m_select_chars = chars;
-  m_select_map = map_id;
+  QueueOnObject(this, [this, chars, map_id, p2_ready]() {
+    m_select_chars = chars;
+    m_select_map = map_id;
 
-  // Update all spinbox values to match received data
-  
-  {
-    // Update P2 controls
-    const QSignalBlocker blocker_num(m_p2_menu.char_no);
-    m_p2_menu.char_no->setValue(m_select_chars[7]);
-    for (int i = 0; i < 3; i++)
+    // Update all spinbox values to match received data
+
     {
-      const QSignalBlocker blocker_ids(m_p2_menu.char_ids[i]);
-      const QSignalBlocker blocker_colors(m_p2_menu.char_colors[i]);
-      m_p2_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1 + 7]);
-      m_p2_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2 + 7]);
+      // Update P2 controls
+      const QSignalBlocker blocker_num(m_p2_menu.char_no);
+      m_p2_menu.char_no->setValue(m_select_chars[7]);
+      for (int i = 0; i < 3; i++)
+      {
+        const QSignalBlocker blocker_ids(m_p2_menu.char_ids[i]);
+        const QSignalBlocker blocker_colors(m_p2_menu.char_colors[i]);
+        m_p2_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1 + 7]);
+        m_p2_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2 + 7]);
+      }
+      m_p2_ready = p2_ready;
+      const QSignalBlocker blocker_ready(m_p2_menu.ready_button);
+      m_p2_menu.ready_button->setChecked(p2_ready);
     }
-    m_p2_ready = p2_ready;
-    const QSignalBlocker blocker_ready(m_p2_menu.ready_button);
-    m_p2_menu.ready_button->setChecked(p2_ready);
-  }
-  
-  {
-    // Update P1 controls
-    const QSignalBlocker blocker_num(m_p1_menu.char_no);
-    m_p1_menu.char_no->setValue(m_select_chars[0]);
-    for (int i = 0; i < 3; i++)
+
     {
-      const QSignalBlocker blocker_ids(m_p1_menu.char_ids[i]);
-      const QSignalBlocker blocker_colors(m_p1_menu.char_colors[i]);
-      m_p1_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1]);
-      m_p1_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2]);
+      // Update P1 controls
+      const QSignalBlocker blocker_num(m_p1_menu.char_no);
+      m_p1_menu.char_no->setValue(m_select_chars[0]);
+      for (int i = 0; i < 3; i++)
+      {
+        const QSignalBlocker blocker_ids(m_p1_menu.char_ids[i]);
+        const QSignalBlocker blocker_colors(m_p1_menu.char_colors[i]);
+        m_p1_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1]);
+        m_p1_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2]);
+      }
+      const QSignalBlocker blocker_map_id(m_p1_menu.map_id);
+      m_p1_menu.map_id->setValue(m_select_map);
     }
-    const QSignalBlocker blocker_map_id(m_p1_menu.map_id);
-    m_p1_menu.map_id->setValue(m_select_map);
-  }
+  });
 }
 
 
