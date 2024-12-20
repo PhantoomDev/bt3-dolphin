@@ -579,25 +579,6 @@ unsigned int NetPlayServer::OnDisconnect(const Client& player)
   return 0;
 }
 
-// BT3 rollback:
-void NetPlayServer::OnCharacterSelect(sf::Packet& packet, Client& player)
-{
-  // Read character data from packet
-  for (auto& c : m_select_chars)
-    packet >> c;
-  packet >> m_select_map;
-
-  // Broadcast to other players
-  sf::Packet spac;
-  spac << MessageID::CharacterSelect;
-  spac << (player.IsHost());  // Include if host or guest
-  for (const auto& c : m_select_chars)
-    spac << c;
-  spac << m_select_map;
-
-  SendToClients(spac, player.pid);
-}
-
 // called from ---GUI--- thread
 PadMappingArray NetPlayServer::GetPadMapping() const
 {
@@ -778,6 +759,27 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
 
   switch (mid)
   {
+  case MessageID::CharacterSelect:
+  {
+    std::array<u32, 14> chars;
+    for (auto& c : chars)
+      packet >> c;
+    u32 map_id;
+    packet >> map_id;
+    bool p2_ready;
+    packet >> p2_ready;
+
+    // send select character to other clients
+    sf::Packet spac;
+    spac << MessageID::CharacterSelect;
+    for (const auto& c : chars)
+      spac << c;
+    spac << map_id;
+    spac << p2_ready;
+
+    SendAsyncToClients(std::move(spac));
+  }
+  break;
   case MessageID::ChatMessage:
   {
     std::string msg;
@@ -1685,13 +1687,6 @@ bool NetPlayServer::StartGame()
 
   for (size_t i = 0; i < sizeof(m_settings.sram); ++i)
     spac << m_settings.sram[i];
-
-  // BT3 rollback: Send charcter/map
-  spac << MessageID::CharacterSelect;
-  spac << (m_host_input_authority);  // Include if host or guest
-  for (const auto& c : m_select_chars)
-    spac << c;
-  spac << m_select_map;
 
   SendAsyncToClients(std::move(spac));
 

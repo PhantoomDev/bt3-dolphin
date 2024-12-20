@@ -9,6 +9,7 @@
 
 #include <QDialog>
 #include <QMenuBar>
+#include <QRadioButton>
 
 #include "Common/Lazy.h"
 #include "Core/NetPlayClient.h"
@@ -185,6 +186,7 @@ private:
   // BT3 rollback:
   // Add new member functions for character select
   void CreateCharacterSelectLayout();
+  void UpdateSelectIds();
 
   // New UI elements for character select
   QGroupBox* m_char_select_box;
@@ -204,12 +206,11 @@ private:
     QSpinBox* char_no;
     std::vector<QSpinBox*> char_ids;
     std::vector<QSpinBox*> char_colors;
-    QPushButton* ready_button;
-    bool is_ready;
+    QRadioButton* ready_button;
   } m_p2_menu;
 
   // State tracking
-  std::array<u32, 14> m_select_chars;
-  u32 m_select_map;
-  bool m_char_select_active{false};
+  std::array<u32, 14> m_select_chars = {};
+  u32 m_select_map = 0;
+  bool m_p2_ready = false;
 };

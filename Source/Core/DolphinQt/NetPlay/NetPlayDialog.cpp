@@ -332,6 +332,7 @@ void NetPlayDialog::CreateCharacterSelectLayout()
   QGridLayout* p1_layout = new QGridLayout;
 
   m_p1_menu.char_no = new QSpinBox;
+  m_p1_menu.char_no->setRange(1, 3);
   p1_layout->addWidget(new QLabel(tr("Number of Character")), 0, 0);
   p1_layout->addWidget(m_p1_menu.char_no, 0, 1);
 
@@ -360,6 +361,7 @@ void NetPlayDialog::CreateCharacterSelectLayout()
   QGridLayout* p2_layout = new QGridLayout;
 
   m_p2_menu.char_no = new QSpinBox;
+  m_p2_menu.char_no->setRange(1, 3);
   p2_layout->addWidget(new QLabel(tr("Number of Character")), 0, 0);
   p2_layout->addWidget(m_p2_menu.char_no, 0, 1);
 
@@ -377,7 +379,7 @@ void NetPlayDialog::CreateCharacterSelectLayout()
     p2_layout->addWidget(m_p2_menu.char_colors[i], i + 1, 3);
   }
 
-  m_p2_menu.ready_button = new QPushButton(tr("Ready"));
+  m_p2_menu.ready_button = new QRadioButton(tr("Ready"));
   p2_layout->addWidget(m_p2_menu.ready_button, 5, 0, 1, 4);
   p2_group->setLayout(p2_layout);
 
@@ -386,6 +388,42 @@ void NetPlayDialog::CreateCharacterSelectLayout()
   layout->addWidget(p2_group, 0, 1);
 
   m_char_select_box->setLayout(layout);
+
+  // Update character select layout enable/disable based on host/guest
+  if (IsHosting())
+  {
+    // Enable P1 controls, disable P2 controls
+    m_p1_menu.char_no->setEnabled(true);
+    for (auto* input : m_p1_menu.char_ids)
+      input->setEnabled(true);
+    for (auto* input : m_p1_menu.char_colors)
+      input->setEnabled(true);
+    m_p1_menu.map_id->setEnabled(true);
+
+    m_p2_menu.char_no->setEnabled(false);
+    for (auto* input : m_p2_menu.char_ids)
+      input->setEnabled(false);
+    for (auto* input : m_p2_menu.char_colors)
+      input->setEnabled(false);
+    m_p2_menu.ready_button->setEnabled(false);
+  }
+  else
+  {
+    // vice versa
+    m_p1_menu.char_no->setEnabled(false);
+    for (auto* input : m_p1_menu.char_ids)
+      input->setEnabled(false);
+    for (auto* input : m_p1_menu.char_colors)
+      input->setEnabled(false);
+    m_p1_menu.map_id->setEnabled(false);
+
+    m_p2_menu.char_no->setEnabled(true);
+    for (auto* input : m_p2_menu.char_ids)
+      input->setEnabled(true);
+    for (auto* input : m_p2_menu.char_colors)
+      input->setEnabled(true);
+    m_p2_menu.ready_button->setEnabled(true);
+  }
 }
 
 void NetPlayDialog::ConnectWidgets()
@@ -423,66 +461,69 @@ void NetPlayDialog::ConnectWidgets()
           [this] { m_chat_send_button->setEnabled(!m_chat_type_edit->text().isEmpty()); });
 
   // Character select
-  if (IsHosting())
-  {
-    connect(m_p1_menu.char_no, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-      // Update local state
-      m_select_chars[0] = value;
 
-      // Tell NetPlayClient to send the update
+  {
+    // Player 1
+    connect(m_p1_menu.char_no, QOverload<int>::of(&QSpinBox::valueChanged), [this]{
+      const QSignalBlocker blocker_num(m_p1_menu.char_no);
+      UpdateSelectIds();
       if (auto client = Settings::Instance().GetNetPlayClient())
-        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
     });
     // connect character ID and color boxes
     for (int i = 0; i < 3; i++)
     {
-      connect(m_p1_menu.char_ids[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
-                m_select_chars[2 * i + 1] = value;
+      connect(m_p1_menu.char_ids[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i]{
+        const QSignalBlocker blocker_id(m_p1_menu.char_ids[i]);
+        UpdateSelectIds();
         if (auto client = Settings::Instance().GetNetPlayClient())
-              client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
       });
-      connect(m_p1_menu.char_colors[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
-                m_select_chars[2 * i + 2] = value;
+      connect(m_p1_menu.char_colors[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i]{
+        const QSignalBlocker blocker_color(m_p1_menu.char_colors[i]);
+        UpdateSelectIds();
         if (auto client = Settings::Instance().GetNetPlayClient())
-          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
       });
     }
     // connect map ID box
-    connect(m_p1_menu.map_id, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-      m_select_map = value;
+    connect(m_p1_menu.map_id, QOverload<int>::of(&QSpinBox::valueChanged), [this]{
+      const QSignalBlocker blocker_map(m_p1_menu.map_id);
+      UpdateSelectIds();
       if (auto client = Settings::Instance().GetNetPlayClient())
-        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
     });
   }
-  else
   {
     // Player 2
-    connect(m_p2_menu.char_no, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-      m_select_chars[7] = value;
+    connect(m_p2_menu.char_no, QOverload<int>::of(&QSpinBox::valueChanged), [this]{
+      const QSignalBlocker blocker_num(m_p2_menu.char_no);
+      UpdateSelectIds();
       if (auto client = Settings::Instance().GetNetPlayClient())
-        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
     });
     // connect character ID and color boxes
     for (int i = 0; i < 3; i++)
     {
-      connect(m_p2_menu.char_ids[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
-        m_select_chars[2 * i + 1 + 7] = value;
+      connect(m_p2_menu.char_ids[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i]{
+        const QSignalBlocker blocker_id(m_p2_menu.char_ids[i]);
+        UpdateSelectIds();
         if (auto client = Settings::Instance().GetNetPlayClient())
-          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
       });
-      connect(m_p2_menu.char_colors[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i](int value) {
-        m_select_chars[2 * i + 2 + 7] = value;
+      connect(m_p2_menu.char_colors[i], QOverload<int>::of(&QSpinBox::valueChanged), [this, i]{
+        const QSignalBlocker blocker_color(m_p2_menu.char_colors[i]);
+        UpdateSelectIds();
         if (auto client = Settings::Instance().GetNetPlayClient())
-          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+          client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
       });
     }
     // connect ready button
-    connect(m_p2_menu.ready_button, &QPushButton::clicked, [this] {
-      // change ready and change
-      m_p2_menu.is_ready = !m_p2_menu.is_ready;
-      m_p2_menu.ready_button->setText(m_p2_menu.is_ready ? tr("Confirmed") : tr("Ready"));
+    connect(m_p2_menu.ready_button, &QRadioButton::clicked, [this] {
+      const QSignalBlocker blocker_ready(m_p2_menu.ready_button);
+      UpdateSelectIds();
       if (auto client = Settings::Instance().GetNetPlayClient())
-        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_menu.is_ready);
+        client->SendCharacterSelectUpdate(m_select_chars, m_select_map, m_p2_ready);
     });
 
   }
@@ -564,6 +605,25 @@ void NetPlayDialog::ConnectWidgets()
   connect(m_hide_remote_gbas_action, &QAction::toggled, this, &NetPlayDialog::SaveSettings);
 }
 
+void NetPlayDialog::UpdateSelectIds()
+{
+  m_select_chars[0] = m_p1_menu.char_no->value();
+  for (int i = 0; i < 3; i++)
+  {
+    m_select_chars[2 * i + 1] = m_p1_menu.char_ids[i]->value();
+    m_select_chars[2 * i + 2] = m_p1_menu.char_colors[i]->value();
+  }
+  m_select_chars[7] = m_p2_menu.char_no->value();
+  for (int i = 0; i < 3; i++)
+  {
+    m_select_chars[2 * i + 1 + 7] = m_p2_menu.char_ids[i]->value();
+    m_select_chars[2 * i + 2 + 7] = m_p2_menu.char_colors[i]->value();
+  }
+  m_select_map = m_p1_menu.map_id->value();
+
+  m_p2_ready = m_p2_menu.ready_button->isChecked();
+}
+
 void NetPlayDialog::SendMessage(const std::string& msg)
 {
   Settings::Instance().GetNetPlayClient()->SendChatMessage(msg);
@@ -602,7 +662,7 @@ void NetPlayDialog::OnIndexRefreshFailed(const std::string error)
 
 void NetPlayDialog::OnStart()
 {
-  if (m_p2_menu.is_ready == false)
+  if (m_p2_menu.ready_button->isChecked() == false)
   {
     ModalMessageBox::critical(this, tr("Error"), tr("P2 is not ready."));
     return;
@@ -928,7 +988,7 @@ void NetPlayDialog::UpdateGUI()
     m_is_copy_button_retry = false;
   }
 
-  // BT3 rollback: Update character select layout
+  // BT3 rollback: Update character select layout enable/disable
   if (IsHosting())
   {
     // Enable P1 controls, disable P2 controls
@@ -1253,33 +1313,36 @@ void NetPlayDialog::OnCharacterSelectUpdate(const std::array<u32, 14>& chars, u3
   m_select_chars = chars;
   m_select_map = map_id;
 
-  // Only update P2 ready button text if we're the host
-  if (IsHosting())
-  {
-    m_p2_menu.is_ready = p2_ready;
-    m_p2_menu.ready_button->setText(p2_ready ? tr("Confirmed") : tr("Ready"));
-  }
-
   // Update all spinbox values to match received data
-  if (IsHosting())
+  
   {
     // Update P2 controls
+    const QSignalBlocker blocker_num(m_p2_menu.char_no);
     m_p2_menu.char_no->setValue(m_select_chars[7]);
     for (int i = 0; i < 3; i++)
     {
+      const QSignalBlocker blocker_ids(m_p2_menu.char_ids[i]);
+      const QSignalBlocker blocker_colors(m_p2_menu.char_colors[i]);
       m_p2_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1 + 7]);
       m_p2_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2 + 7]);
     }
+    m_p2_ready = p2_ready;
+    const QSignalBlocker blocker_ready(m_p2_menu.ready_button);
+    m_p2_menu.ready_button->setChecked(p2_ready);
   }
-  else
+  
   {
     // Update P1 controls
+    const QSignalBlocker blocker_num(m_p1_menu.char_no);
     m_p1_menu.char_no->setValue(m_select_chars[0]);
     for (int i = 0; i < 3; i++)
     {
+      const QSignalBlocker blocker_ids(m_p1_menu.char_ids[i]);
+      const QSignalBlocker blocker_colors(m_p1_menu.char_colors[i]);
       m_p1_menu.char_ids[i]->setValue(m_select_chars[2 * i + 1]);
       m_p1_menu.char_colors[i]->setValue(m_select_chars[2 * i + 2]);
     }
+    const QSignalBlocker blocker_map_id(m_p1_menu.map_id);
     m_p1_menu.map_id->setValue(m_select_map);
   }
 }

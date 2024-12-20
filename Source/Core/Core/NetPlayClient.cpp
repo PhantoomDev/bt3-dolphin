@@ -1543,13 +1543,11 @@ void NetPlayClient::OnInputDelay(sf::Packet& packet)
 void NetPlayClient::OnCharacterSelect(sf::Packet& packet)
 {
   // Read character data
+
   for (auto& c : m_select_chars)
     packet >> c;
   packet >> m_select_map;
-
-  bool is_ready;
-  packet >> is_ready;
-  m_p2_ready = is_ready;
+  packet >> m_p2_ready;
 
   // Update dialog if available
   if (m_dialog)
@@ -2852,16 +2850,14 @@ void NetPlayClient::SendPowerButtonEvent()
 void NetPlayClient::SendCharacterSelectUpdate(const std::array<u32, 14>& chars, u32 map_id,
                                               bool p2_ready)
 {
-  sf::Packet spac;
-  spac << MessageID::CharacterSelect;
-
-  // Send all character data
+  sf::Packet packet;
+  packet << MessageID::CharacterSelect;
   for (const auto& c : chars)
-    spac << c;
-  spac << map_id;
-  spac << p2_ready;
+    packet << c;
+  packet << map_id;
+  packet << p2_ready;
 
-  SendAsync(std::move(spac));
+  SendAsync(std::move(packet));
 }
 
 void NetPlayClient::RequestGolfControl(const PlayerId pid)

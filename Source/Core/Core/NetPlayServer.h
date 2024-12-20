@@ -145,7 +145,6 @@ private:
   void OnConnectReady(ENetAddress) override {}
   void OnConnectFailed(Common::TraversalConnectFailedReason) override {}
   void OnTtlDetermined(u8 ttl) override;
-  void OnCharacterSelect(sf::Packet& packet, Client& player); // BT3 rollback
   void UpdatePadMapping();
   void UpdateGBAConfig();
   void UpdateWiimoteMapping();
@@ -188,9 +187,6 @@ private:
 
   std::unordered_map<u32, std::vector<std::pair<PlayerId, u64>>> m_timebase_by_frame;
   bool m_desync_detected = false;
-
-  std::array<u32, 14> m_select_chars;
-  u32 m_select_map;
 
   struct
   {
