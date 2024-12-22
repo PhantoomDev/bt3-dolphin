@@ -214,5 +214,9 @@ private:
   Common::TraversalClient* m_traversal_client = nullptr;
   NetPlayUI* m_dialog = nullptr;
   NetPlayIndex m_index;
+
+  std::array<u32, 14> m_select_chars = {};
+  u32 m_select_map = 0;
+  bool m_p2_ready = false;
 };
 }  // namespace NetPlay

@@ -206,12 +206,6 @@ static void DoState(Core::System& system, PointerWrap& p)
 
 void LoadFromBuffer(Core::System& system, std::vector<u8>& buffer)
 {
-  if (NetPlay::IsNetPlayRunning())
-  {
-    OSD::AddMessage("Loading savestates is disabled in Netplay to prevent desyncs");
-    return;
-  }
-
   if (AchievementManager::GetInstance().IsHardcoreModeActive())
   {
     OSD::AddMessage("Loading savestates is disabled in RetroAchievements hardcore mode");
@@ -856,12 +850,6 @@ void LoadAs(Core::System& system, const std::string& filename)
 {
   if (!Core::IsRunningOrStarting(system))
     return;
-
-  if (NetPlay::IsNetPlayRunning())
-  {
-    OSD::AddMessage("Loading savestates is disabled in Netplay to prevent desyncs");
-    return;
-  }
 
   if (AchievementManager::GetInstance().IsHardcoreModeActive())
   {

@@ -761,21 +761,18 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
   {
   case MessageID::CharacterSelect:
   {
-    std::array<u32, 14> chars;
-    for (auto& c : chars)
+    for (auto& c : m_select_chars)
       packet >> c;
-    u32 map_id;
-    packet >> map_id;
-    bool p2_ready;
-    packet >> p2_ready;
+    packet >> m_select_map;
+    packet >> m_p2_ready;
 
     // send select character to other clients
     sf::Packet spac;
     spac << MessageID::CharacterSelect;
-    for (const auto& c : chars)
+    for (const auto& c : m_select_chars)
       spac << c;
-    spac << map_id;
-    spac << p2_ready;
+    spac << m_select_map;
+    spac << m_p2_ready;
 
     SendAsyncToClients(std::move(spac));
   }
@@ -1687,6 +1684,10 @@ bool NetPlayServer::StartGame()
 
   for (size_t i = 0; i < sizeof(m_settings.sram); ++i)
     spac << m_settings.sram[i];
+
+  for (const auto& c : m_select_chars)
+    spac << c;
+  spac << m_select_map;
 
   SendAsyncToClients(std::move(spac));
 

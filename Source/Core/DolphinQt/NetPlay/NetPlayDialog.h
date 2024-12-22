@@ -16,6 +16,7 @@
 #include "Core/NetPlayClient.h"
 #include "DolphinQt/GameList/GameListModel.h"
 #include "VideoCommon/OnScreenDisplay.h"
+#include "Core/CustomStateLoader.h"
 
 class BootSessionData;
 class ChunkedProgressDialog;
@@ -211,6 +212,7 @@ private:
   } m_p2_menu;
 
   // Character select data
+  CustomStateLoader* m_custom_state_loader = nullptr;
   std::array<u32, 14> m_select_chars = {};
   u32 m_select_map = 0;
   bool m_p2_ready = false;

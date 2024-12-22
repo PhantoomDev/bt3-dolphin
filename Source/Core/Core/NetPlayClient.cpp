@@ -946,6 +946,10 @@ void NetPlayClient::OnStartGame(sf::Packet& packet)
     m_net_settings.is_hosting = m_local_player->IsHost();
   }
 
+  for (auto& c : m_select_chars)
+    packet >> c;
+  packet >> m_select_map;
+
   m_dialog->OnMsgStartGame();
 }
 

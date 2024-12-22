@@ -24,6 +24,7 @@
 #include "Core/NetPlayProto.h"
 #include "Core/SyncIdentifier.h"
 #include "InputCommon/GCPadStatus.h"
+#include "Core/CustomStateLoader.h"
 
 class BootSessionData;
 
@@ -452,6 +453,7 @@ private:
   // TODO: Might be in public external configuration
   void ConfigureInputDelay(int frames);
 
+  std::unique_ptr<CustomStateLoader> m_state_loader;
   std::array<u32, 14> m_select_chars = {};
   u32 m_select_map = 0;
   bool m_p2_ready = false;

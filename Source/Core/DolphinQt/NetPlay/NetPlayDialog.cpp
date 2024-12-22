@@ -1013,6 +1013,20 @@ void NetPlayDialog::BootGame(const std::string& filename,
 {
   m_got_stop_request = false;
   m_start_game_callback(filename, std::move(boot_session_data));
+
+  // Load custom state immediately after booting game
+  m_custom_state_loader = new CustomStateLoader(Core::System::GetInstance());
+  QueueOnObject(this, [this] {
+    auto client = Settings::Instance().GetNetPlayClient();
+    if (client)
+    {
+      m_custom_state_loader->LoadPrepareCombat();
+
+      // Set character/map selection values
+      m_custom_state_loader->SetSelectionValues(m_select_chars, m_select_map);
+    }
+  });
+
 }
 
 void NetPlayDialog::StopGame()
