@@ -1826,6 +1826,9 @@ bool NetPlayClient::StartGame(const std::string& path)
                        m_wiimote_map[i] > 0 ? WiimoteSource::Emulated : WiimoteSource::None);
   }
 
+  // flag for custom state loader
+  m_needs_custom_state = true;
+
   // boot game
   auto boot_session_data = std::make_unique<BootSessionData>();
 
@@ -1853,6 +1856,18 @@ bool NetPlayClient::StartGame(const std::string& path)
 
   UpdateDevices();
 
+  // Load custom state immediately after booting game
+
+  /*
+  if (Core::GetState(Core::System::GetInstance()) == Core::State::Running)
+    Core::SetState(Core::System::GetInstance(), Core::State::Paused);
+
+  m_custom_state_loader = std::make_unique<CustomStateLoader>(Core::System::GetInstance());
+  m_custom_state_loader->LoadPrepareCombat();
+  m_custom_state_loader->SetSelectionValues(m_select_chars, m_select_map);
+
+  Core::SetState(Core::System::GetInstance(), Core::State::Running);
+  */
   return true;
 }
 
@@ -3017,6 +3032,19 @@ void NetPlayClient::SendGameStatus()
 void NetPlayClient::SendTimeBase()
 {
   std::lock_guard lk(crit_netplay_client);
+
+  // Confirm game is now running, can load custom state
+  if (netplay_client->m_timebase_frame == 0 && netplay_client->m_needs_custom_state)
+  {
+    // Game is now running, safe to load state
+    netplay_client->m_custom_state_loader =
+        std::make_unique<CustomStateLoader>(Core::System::GetInstance());
+    ;
+    netplay_client->m_custom_state_loader->LoadPrepareCombat();
+    netplay_client->m_custom_state_loader->SetSelectionValues(netplay_client->m_select_chars,
+                                                       netplay_client->m_select_map);
+    netplay_client->m_needs_custom_state = false;
+  }
 
   if (netplay_client->m_timebase_frame % 60 == 0)
   {
