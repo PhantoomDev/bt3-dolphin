@@ -1065,46 +1065,15 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
 
   case MessageID::TimeBase:
   {
-    u64 timebase = Common::PacketReadU64(packet);
+    // Instead of the original strict comparison, we'll implement a more flexible system
     u32 frame;
     packet >> frame;
 
-    if (m_desync_detected)
-      break;
+    // Store the client's frame number for lag detection
+    m_client_frames[player.pid] = frame;
 
-    std::vector<std::pair<PlayerId, u64>>& timebases = m_timebase_by_frame[frame];
-    timebases.emplace_back(player.pid, timebase);
-    if (timebases.size() >= m_players.size())
-    {
-      // we have all records for this frame
-
-      if (!std::all_of(timebases.begin(), timebases.end(), [&](std::pair<PlayerId, u64> pair) {
-            return pair.second == timebases[0].second;
-          }))
-      {
-        int pid_to_blame = 0;
-        for (auto pair : timebases)
-        {
-          if (std::all_of(timebases.begin(), timebases.end(), [&](std::pair<PlayerId, u64> other) {
-                return other.first == pair.first || other.second != pair.second;
-              }))
-          {
-            // we are the only outlier
-            pid_to_blame = pair.first;
-            break;
-          }
-        }
-
-        sf::Packet spac;
-        spac << MessageID::DesyncDetected;
-        spac << pid_to_blame;
-        spac << frame;
-        SendToClients(spac);
-
-        m_desync_detected = true;
-      }
-      m_timebase_by_frame.erase(frame);
-    }
+    // Check if clients are too far apart (but don't trigger desync)
+    CheckFrameDivergence(player.pid, frame);
   }
   break;
 
@@ -1289,7 +1258,48 @@ void NetPlayServer::OnTraversalStateChanged()
   m_dialog->OnTraversalStateChanged(state);
 }
 
-void NetPlayServer::OnTtlDetermined(u8 ttl)
+void NetPlayServer::CheckFrameDivergence(PlayerId pid, u32 frame)
+{
+  m_client_frames[pid] = frame;
+
+  // Get both players' frames
+  auto it = m_client_frames.begin();
+  PlayerId player1_id = it->first;
+  u32 player1_frame = it->second;
+  ++it;
+  PlayerId player2_id = it->first;
+  u32 player2_frame = it->second;
+
+  // Any frame difference means we need to sync
+  if (player1_frame != player2_frame)
+  {
+    // Determine which player is ahead
+    PlayerId ahead_player;
+    PlayerId behind_player;
+    u32 behind_frame;
+
+    if (player1_frame > player2_frame)
+    {
+      ahead_player = player1_id;
+      behind_player = player2_id;
+      behind_frame = player2_frame;
+    }
+    else
+    {
+      ahead_player = player2_id;
+      behind_player = player1_id;
+      behind_frame = player1_frame;
+    }
+
+    // Tell the ahead player to wait
+    sf::Packet spac;
+    spac << MessageID::WaitForFrame;
+    spac << behind_player;
+    spac << behind_frame;
+    Send(m_players[ahead_player].socket, spac);
+  }
+}
+  void NetPlayServer::OnTtlDetermined(u8 ttl)
 {
   m_dialog->OnTtlDetermined(ttl);
 }

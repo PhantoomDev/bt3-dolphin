@@ -413,6 +413,10 @@ void NetPlayClient::OnData(sf::Packet& packet)
     OnInputDelay(packet);
     break;
 
+  case MessageID::WaitForFrame:
+    OnWaitForFrame(packet);
+    break;
+
   case MessageID::HostInputAuthority:
     OnHostInputAuthority(packet);
     break;
@@ -703,6 +707,12 @@ void NetPlayClient::OnPadData(sf::Packet& packet)
     // add to pad buffer
     m_pad_buffer.at(map).Push(pad);
     m_gc_pad_event.Set();
+  }
+
+  if (m_waiting_for_frame && m_local_player->pid == m_waiting_for_player)
+  {
+    m_waiting_for_frame = false;
+    m_frame_wait_event.Set();  // Wake up GetNetPads
   }
 }
 
@@ -1543,6 +1553,18 @@ void NetPlayClient::OnInputDelay(sf::Packet& packet)
   SetInputDelay(delay_frames);
 }
 
+void NetPlayClient::OnWaitForFrame(sf::Packet& packet)
+{
+  PlayerId trailing_player;
+  u32 target_frame;
+  packet >> trailing_player;
+  packet >> target_frame;
+
+  m_waiting_for_frame = true;
+  m_waiting_for_player = trailing_player;
+  m_wait_until_frame = target_frame;
+}
+
 // BT3 rollback: character select
 void NetPlayClient::OnCharacterSelect(sf::Packet& packet)
 {
@@ -1856,18 +1878,6 @@ bool NetPlayClient::StartGame(const std::string& path)
 
   UpdateDevices();
 
-  // Load custom state immediately after booting game
-
-  /*
-  if (Core::GetState(Core::System::GetInstance()) == Core::State::Running)
-    Core::SetState(Core::System::GetInstance(), Core::State::Paused);
-
-  m_custom_state_loader = std::make_unique<CustomStateLoader>(Core::System::GetInstance());
-  m_custom_state_loader->LoadPrepareCombat();
-  m_custom_state_loader->SetSelectionValues(m_select_chars, m_select_map);
-
-  Core::SetState(Core::System::GetInstance(), Core::State::Running);
-  */
   return true;
 }
 
@@ -2043,6 +2053,8 @@ void NetPlayClient::OnConnectFailed(Common::TraversalConnectFailedReason reason)
 }
 
 // called from ---CPU--- thread
+/*
+* this is the old GetNetPads function, use this as reference if needed
 bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatus* pad_status)
 {
   // The interface for this is extremely silly.
@@ -2181,7 +2193,8 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
 
   return true;
 }
-/*
+*/
+
 // BT3 rollback: Modified GetNetPads() function to be used (remove or comment out the original when testing)
 // the version above uses dealy based approach (look up rollback vs delay on YT)
 // when testing will comment out the previous part so as to not destroy things
@@ -2190,6 +2203,22 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
 {
   if (!m_is_running.IsSet())
     return false;
+
+  if (m_waiting_for_frame)
+  {
+    if (m_current_frame > m_wait_until_frame)
+    {
+      m_waiting_for_frame = false;
+      m_waiting_for_player = 0;
+    }
+    else
+    {
+      // Use Dolphin's event system for synchronization
+      m_frame_wait_event.Wait();
+      return false;
+    }
+  }
+
 
   // Handle batching for polling all local pads at once
   if (IsFirstInGamePad(pad_nb) && batching)
@@ -2272,7 +2301,7 @@ bool NetPlayClient::GetNetPads(const int pad_nb, const bool batching, GCPadStatu
 
   return true;
 }
-*/
+
 // BT3 rollback: Helper function implementations
 bool NetPlayClient::HasPrediction(int pad_num, int frame)
 {
@@ -2344,7 +2373,7 @@ void NetPlayClient::UpdatePredictionHistory(int pad_num, int frame, const GCPadS
   // Clean up old predictions to prevent memory growth
   predictions.erase(std::remove_if(predictions.begin(), predictions.end(),
                                    [this](const InputPredictionState& state) {
-                                     return state.frame_number <
+                                     return (u32)state.frame_number <
                                             m_current_frame - MAX_ROLLBACK_FRAMES;
                                    }),
                     predictions.end());
@@ -2439,7 +2468,7 @@ void NetPlayClient::SaveCurrentGameState()
   }
 }
 
-void NetPlayClient::LoadGameState(int frame)
+void NetPlayClient::LoadGameState(u32 frame)
 {
   // Find the correct state to load
   auto state_it =

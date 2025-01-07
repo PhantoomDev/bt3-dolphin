@@ -188,6 +188,9 @@ private:
   std::unordered_map<u32, std::vector<std::pair<PlayerId, u64>>> m_timebase_by_frame;
   bool m_desync_detected = false;
 
+  std::map<PlayerId, u32> m_client_frames;
+  void CheckFrameDivergence(PlayerId pid, u32 frame);
+
   struct
   {
     std::recursive_mutex game;

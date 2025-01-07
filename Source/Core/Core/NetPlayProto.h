@@ -140,6 +140,8 @@ enum class MessageID : u8
 
   // BT3 rollback: character select
   CharacterSelect = 0x20,
+  CustomStateLoaded = 0x21,
+  AllPlayersReady = 0x22,
 
   ChatMessage = 0x30,
 
@@ -156,6 +158,7 @@ enum class MessageID : u8
   PadHostData = 0x63,
   GBAConfig = 0x64,
   InputDelay = 0x65, // BT3 rollback: delay buffer
+  WaitForFrame = 0x66,
 
   WiimoteData = 0x70,
   WiimoteMapping = 0x71,

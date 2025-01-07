@@ -377,8 +377,8 @@ private:
     return status;
   }
   // BT3 rollback: Constants
-  static constexpr int MAX_ROLLBACK_FRAMES = 7;
-  static constexpr int MAX_CONSECUTIVE_PREDICTIONS = 10;
+  static constexpr u32 MAX_ROLLBACK_FRAMES = 7;
+  static constexpr u32 MAX_CONSECUTIVE_PREDICTIONS = 10;
   static constexpr float FRAME_TIME_MS = 33.33f;
 
   // BT3 rollback: State management structures
@@ -389,12 +389,20 @@ private:
    * 3. State serialization format
    * 4. Efficient state comparison for desync detection
    */
+
+  // BT3 rollback: Desync detection
+  bool m_waiting_for_frame = false;
+  PlayerId m_waiting_for_player = 0;
+  u32 m_wait_until_frame = 0;
+  Common::Event m_frame_wait_event;  // Using Dolphin's event system instead of condition variables
+  void OnWaitForFrame(sf::Packet& packet);
+
   struct GameState
   {
     // Core system state
     std::vector<u8> memory_state;
     std::vector<u8> register_state;
-    int frame_number;
+    u32 frame_number;
 
     /* TODO: Game State Components
      * As we reverse engineer the game, we'll identify and document:
@@ -418,12 +426,12 @@ private:
 
   // BT3 rollback: State management functions
   void SaveCurrentGameState();
-  void LoadGameState(int frame);
+  void LoadGameState(u32 frame);
   void ResimulateFrames(int start_frame, int end_frame);
 
   // BT3 rollback: Prediction map
   std::map<int, std::vector<InputPredictionState>> m_prediction_map;
-  int m_current_frame = 0;
+  u32 m_current_frame = 0;
 
   // BT3 rollback: Network and packet loss handling
   bool ShouldCheckPacketLoss();
@@ -441,7 +449,7 @@ private:
   std::map<int, std::deque<DelayedInput>> m_delay_buffers;
 
   // Current delay frames setting - can be 0 for pure rollback
-  int m_input_delay_frames = 0;
+  u32 m_input_delay_frames = 0;
   static constexpr int MAX_DELAY_BUFFER_SIZE = 5;
 
   // Delay buffer management functions
@@ -454,6 +462,7 @@ private:
   // TODO: Might be in public external configuration
   void ConfigureInputDelay(int frames);
 
+  // Character select custom state loading
   bool m_needs_custom_state = false;
   std::unique_ptr<CustomStateLoader> m_custom_state_loader = nullptr;
   std::array<u32, 14> m_select_chars = {};
