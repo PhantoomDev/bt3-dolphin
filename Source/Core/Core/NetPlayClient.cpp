@@ -3062,17 +3062,10 @@ void NetPlayClient::SendTimeBase()
 {
   std::lock_guard lk(crit_netplay_client);
 
-  // Confirm game is now running, can load custom state
+  // Load custom state on the first frame
   if (netplay_client->m_timebase_frame == 0 && netplay_client->m_needs_custom_state)
   {
-    // Game is now running, safe to load state
-    netplay_client->m_custom_state_loader =
-        std::make_unique<CustomStateLoader>(Core::System::GetInstance());
-    ;
-    netplay_client->m_custom_state_loader->LoadPrepareCombat();
-    netplay_client->m_custom_state_loader->SetSelectionValues(netplay_client->m_select_chars,
-                                                       netplay_client->m_select_map);
-    netplay_client->m_needs_custom_state = false;
+    netplay_client->LoadCustomState();
   }
 
   if (netplay_client->m_timebase_frame % 60 == 0)
@@ -3090,6 +3083,13 @@ void NetPlayClient::SendTimeBase()
   netplay_client->m_timebase_frame++;
 }
 
+void NetPlayClient::LoadCustomState()
+{
+  // Load custom state than wait and pause
+  m_custom_state_loader = std::make_unique<CustomStateLoader>(Core::System::GetInstance());
+  m_custom_state_loader->LoadPrepareCombat(m_select_chars,m_select_map);
+  m_needs_custom_state = false;
+}
 bool NetPlayClient::DoAllPlayersHaveGame()
 {
   std::lock_guard lkp(m_crit.players);

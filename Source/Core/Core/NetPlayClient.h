@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 #include <deque>
+#include <set>
 
 #include "Common/CommonTypes.h"
 #include "Common/Event.h"
@@ -326,6 +327,7 @@ private:
   // BT3 rollback:
   void OnInputDelay(sf::Packet& packet);
   void OnCharacterSelect(sf::Packet& packet);
+  void OnCustomStateLoaded(sf::Packet& packet);
 
   bool m_is_connected = false;
   ConnectionState m_connection_state = ConnectionState::Failure;
@@ -468,6 +470,7 @@ private:
   std::array<u32, 14> m_select_chars = {};
   u32 m_select_map = 0;
   bool m_p2_ready = false;
+  void LoadCustomState();
 };
 
 void NetPlay_Enable(NetPlayClient* const np);

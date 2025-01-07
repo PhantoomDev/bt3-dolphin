@@ -2145,8 +2145,7 @@ void MainWindow::ShowCharacterLoader()
     if (Core::GetState(m_system) == Core::State::Running)
       Core::SetState(m_system, Core::State::Paused);
 
-    m_custom_loader->LoadPrepareCombat();
-    m_custom_loader->SetSelectionValues(char_arr, map_id);
+    m_custom_loader->LoadPrepareCombat(char_arr, map_id);
 
     Core::SetState(m_system, Core::State::Running);
 

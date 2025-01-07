@@ -777,6 +777,7 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
     SendAsyncToClients(std::move(spac));
   }
   break;
+
   case MessageID::ChatMessage:
   {
     std::string msg;
@@ -1066,14 +1067,16 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
   case MessageID::TimeBase:
   {
     // Instead of the original strict comparison, we'll implement a more flexible system
+    u64 timebase;
     u32 frame;
+    packet >> timebase;
     packet >> frame;
 
     // Store the client's frame number for lag detection
     m_client_frames[player.pid] = frame;
 
     // Check if clients are too far apart (but don't trigger desync)
-    CheckFrameDivergence(player.pid, frame);
+    //CheckFrameDivergence(player.pid, frame);
   }
   break;
 

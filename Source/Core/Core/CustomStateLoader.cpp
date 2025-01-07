@@ -19,17 +19,14 @@ CustomStateLoader::CustomStateLoader(Core::System& system) : m_system(system)
 
 CustomStateLoader::~CustomStateLoader() = default;
 
-void CustomStateLoader::LoadPrepareCombat()
+void CustomStateLoader::LoadPrepareCombat(std::array<u32, 14>& char_arr, u32& map_id)
 {
   // Load prepared save state
   State::LoadAs(m_system, m_base_state_path);
-}
-
-void CustomStateLoader::SetSelectionValues(std::array<u32, 14>& char_arr, u32 &map_id)
-{
   Core::CPUThreadGuard guard(m_system);
 
-  // Character number logic, any character val over the number of character will be set to 0xffffffff and color as 0x00000000
+  // Character number logic, any character val over the number of character will be set to
+  // 0xffffffff and color as 0x00000000
   for (unsigned int i = 1; i <= 3; i++)
   {
     int baseIdx = (i - 1) * 2 + 1;

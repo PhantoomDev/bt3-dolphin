@@ -33,8 +33,7 @@ public:
   CustomStateLoader& operator=(const CustomStateLoader&) = delete;
 
   // Public interface
-  void LoadPrepareCombat();
-  void SetSelectionValues(std::array<u32, 14>& char_arr, u32& map_id);
+  void LoadPrepareCombat(std::array<u32, 14>& char_arr, u32& map_id);
 
 private:
 
