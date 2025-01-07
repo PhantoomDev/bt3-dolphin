@@ -778,6 +778,18 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
   }
   break;
 
+  case MessageID::LoadCustomState:
+  {
+    PlayerId pid;
+    packet >> pid;
+
+    sf::Packet spac;
+    spac << MessageID::LoadCustomState;
+    spac << pid;
+    SendAsyncToClients(std::move(spac));
+  }
+  break;
+
   case MessageID::ChatMessage:
   {
     std::string msg;

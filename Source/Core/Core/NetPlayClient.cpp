@@ -361,6 +361,10 @@ void NetPlayClient::OnData(sf::Packet& packet)
     OnCharacterSelect(packet);
     break;
 
+case MessageID::LoadCustomState:
+    OnLoadCustomState(packet);
+    break;
+
   case MessageID::ChatMessage:
     OnChatMessage(packet);
     break;
@@ -1850,6 +1854,7 @@ bool NetPlayClient::StartGame(const std::string& path)
 
   // flag for custom state loader
   m_needs_custom_state = true;
+  m_players_ready_load_state.fill(false);
 
   // boot game
   auto boot_session_data = std::make_unique<BootSessionData>();
@@ -3060,14 +3065,18 @@ void NetPlayClient::SendGameStatus()
 
 void NetPlayClient::SendTimeBase()
 {
-  std::lock_guard lk(crit_netplay_client);
-
   // Load custom state on the first frame
   if (netplay_client->m_timebase_frame == 0 && netplay_client->m_needs_custom_state)
   {
-    netplay_client->LoadCustomState();
+    INFO_LOG_FMT(NETPLAY, "Signaling to load custom state");
+    sf::Packet packet;
+    packet << MessageID::LoadCustomState;
+    packet << netplay_client->m_local_player->pid;
+    netplay_client->SendAsync(std::move(packet));
+    return;  // Don't process timebase until state is loaded
   }
 
+  std::lock_guard lk(crit_netplay_client);
   if (netplay_client->m_timebase_frame % 60 == 0)
   {
     const sf::Uint64 timebase = Core::System::GetInstance().GetSystemTimers().GetFakeTimeBase();
@@ -3083,13 +3092,24 @@ void NetPlayClient::SendTimeBase()
   netplay_client->m_timebase_frame++;
 }
 
-void NetPlayClient::LoadCustomState()
+void NetPlayClient::OnLoadCustomState(sf::Packet& packet)
 {
-  // Load custom state than wait and pause
-  m_custom_state_loader = std::make_unique<CustomStateLoader>(Core::System::GetInstance());
-  m_custom_state_loader->LoadPrepareCombat(m_select_chars,m_select_map);
-  m_needs_custom_state = false;
+  PlayerId pid;
+  packet >> pid;
+
+  m_players_ready_load_state[pid] = true;
+
+  if (m_players_ready_load_state[1] && m_players_ready_load_state[2])
+  {
+    m_players_ready_load_state.fill(false);
+    netplay_client->m_custom_state_loader =
+        std::make_unique<CustomStateLoader>(Core::System::GetInstance());
+    netplay_client->m_custom_state_loader->LoadPrepareCombat(netplay_client->m_select_chars,
+                                                     netplay_client->m_select_map);
+    netplay_client->m_needs_custom_state = false;
+  }
 }
+
 bool NetPlayClient::DoAllPlayersHaveGame()
 {
   std::lock_guard lkp(m_crit.players);

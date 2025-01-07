@@ -327,7 +327,7 @@ private:
   // BT3 rollback:
   void OnInputDelay(sf::Packet& packet);
   void OnCharacterSelect(sf::Packet& packet);
-  void OnCustomStateLoaded(sf::Packet& packet);
+  void OnLoadCustomState(sf::Packet& packet);
 
   bool m_is_connected = false;
   ConnectionState m_connection_state = ConnectionState::Failure;
@@ -470,7 +470,7 @@ private:
   std::array<u32, 14> m_select_chars = {};
   u32 m_select_map = 0;
   bool m_p2_ready = false;
-  void LoadCustomState();
+  std::array<bool, 3> m_players_ready_load_state = {false, false, false};
 };
 
 void NetPlay_Enable(NetPlayClient* const np);

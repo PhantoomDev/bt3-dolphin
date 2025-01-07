@@ -140,6 +140,7 @@ enum class MessageID : u8
 
   // BT3 rollback: character select
   CharacterSelect = 0x20,
+  LoadCustomState = 0x21,
 
   ChatMessage = 0x30,
 
